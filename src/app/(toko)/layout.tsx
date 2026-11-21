@@ -3,6 +3,7 @@ import { getCurrentUser, isAdmin } from "@/lib/session";
 import { logout } from "./actions";
 import { MgPosLogo, StoreLogo } from "@/components/brand";
 import { ROLES } from "@/lib/constants";
+import NavLinks from "./NavLinks";
 
 export default async function TokoLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -26,25 +27,22 @@ export default async function TokoLayout({ children }: { children: React.ReactNo
   return (
     <>
       {user && (
-        <header className="print:hidden sticky top-0 z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-2">
-            <Link href="/" className="flex min-w-0 max-w-[14rem] items-center gap-2">
+        <header className="print:hidden z-10 sm:sticky sm:top-0 border-b border-neutral-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 pt-2">
+            <Link href="/" className="flex min-w-0 flex-1 items-center gap-2">
               <StoreLogo business={user.business} size={32} />
               <span className="truncate text-lg font-black tracking-tight">{user.business.name}</span>
             </Link>
-            <nav className="flex flex-1 gap-1 overflow-x-auto text-sm">
-              {links.map(([href, label]) => (
-                <Link key={href} href={href} className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-neutral-700 hover:bg-neutral-100">
-                  {label}
-                </Link>
-              ))}
-            </nav>
-            <form action={logout} className="flex items-center gap-2 text-xs text-neutral-500">
-              <Link href="/akun" className="hidden rounded-md px-2 py-1 hover:bg-neutral-100 sm:inline">
-                {user.name} · {ROLES[user.role]}
+            <form action={logout} className="flex shrink-0 items-center gap-1 text-xs text-neutral-500">
+              <Link href="/akun" className="max-w-[8rem] truncate rounded-md px-2 py-1 hover:bg-neutral-100">
+                {user.name}
+                <span className="hidden sm:inline"> · {ROLES[user.role]}</span>
               </Link>
               <button className="rounded-md px-2 py-1 hover:bg-neutral-100">Keluar</button>
             </form>
+          </div>
+          <div className="mx-auto max-w-6xl px-3 pb-2 pt-1.5">
+            <NavLinks links={links as [string, string][]} />
           </div>
         </header>
       )}
