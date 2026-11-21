@@ -15,7 +15,7 @@ export default async function AkunAdminPage({ searchParams }: { searchParams: SP
   const now = new Date();
   return (
     <div>
-      <PageHeader title="Akun admin" desc="Admin MG-POS masuk lewat /admin/masuk dengan nama dan PIN, terpisah dari akun toko." />
+      <PageHeader title="Akun admin" desc="Admin MG-POS masuk lewat /admin/login dengan nama dan PIN, terpisah dari akun toko." />
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Daftar admin" className="lg:col-span-2">

@@ -7,12 +7,12 @@ MG-POS: aplikasi kasir, stok, dan kas untuk banyak toko dalam satu aplikasi. Awa
 - **Banyak bisnis**: setiap bisnis mendaftar di `/daftar` dan mendapat **kode toko** (mis. `naeema`).
   Semua data (produk, stok, penjualan, kas, QR, pengaturan) terpisah per bisnis; pengguna hanya bisa melihat
   data bisnisnya sendiri. Saat masuk di perangkat baru, isi kode toko dulu, lalu pilih nama dan PIN.
-  Tautan langsung: `/masuk?toko=kode-toko`. Kategori produk dan nama bisnis diatur sendiri di Pengaturan.
-- **Admin MG-POS** (`/admin/masuk`, terpisah dari halaman dan akun toko): akun admin sendiri dengan nama + PIN.
+  Tautan langsung: `/login?toko=kode-toko`. Kategori produk dan nama bisnis diatur sendiri di Pengaturan.
+- **Admin MG-POS** (`/admin/login`, terpisah dari halaman dan akun toko): akun admin sendiri dengan nama + PIN.
   Atur mode pendaftaran (terbuka, perlu persetujuan, kode undangan, ditutup), setujui/tolak pendaftaran, buat toko,
   nonaktifkan toko, ganti nama/logo toko, kelola akun di toko mana pun, dan kelola akun admin lain.
   Admin pertama diambil dari admin platform lama dengan nama dan PIN yang sama. Di instalasi baru,
-  `/admin/masuk` meminta membuat admin pertama.
+  `/admin/login` meminta membuat admin pertama.
 - **Logo**: logo MG-POS untuk ikon aplikasi. Logo toko wajib diunggah saat daftar (PNG/JPG/WEBP, maks. 512 KB),
   tampil di halaman masuk, menu atas, dan di atas struk (cetak browser maupun printer Bluetooth, diubah jadi hitam-putih).
 - **Kasir**: penjualan dari toko offline, marketplace (Shopee, Tokopedia, TikTok Shop, Lazada), atau pameran/event.

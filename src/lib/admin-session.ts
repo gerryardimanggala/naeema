@@ -18,6 +18,6 @@ export const getCurrentAdmin = cache(async () => {
 
 export async function requirePlatformAdmin() {
   const admin = await getCurrentAdmin();
-  if (!admin) redirect("/admin/masuk");
+  if (!admin) redirect("/admin/login");
   return admin;
 }
