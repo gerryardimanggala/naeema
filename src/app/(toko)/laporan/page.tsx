@@ -6,10 +6,12 @@ import { formatMoney, fromMinor } from "@/lib/money";
 import { fmtDate } from "@/lib/time";
 import { CHANNELS, EXPENSE_CATEGORIES, MARKETPLACES } from "@/lib/constants";
 import { Card, PageHeader, str, type SP } from "@/components/ui";
+import { getT } from "@/lib/i18n";
+import type { T } from "@/lib/i18n-core";
 
-function Bars({ rows }: { rows: { label: string; value: number; sub?: string }[] }) {
+function Bars({ rows, t }: { rows: { label: string; value: number; sub?: string }[]; t: T }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
-  if (!rows.length) return <p className="text-sm text-neutral-500">Belum ada data.</p>;
+  if (!rows.length) return <p className="text-sm text-neutral-500">{t("Belum ada data.")}</p>;
   return (
     <div className="space-y-2">
       {rows.map((r) => (
@@ -29,6 +31,7 @@ function Bars({ rows }: { rows: { label: string; value: number; sub?: string }[]
 }
 
 export default async function LaporanPage({ searchParams }: { searchParams: SP }) {
+  const t = await getT();
   const me = await requireAdmin();
   const bid = me.businessId;
   const sp = await searchParams;
@@ -84,32 +87,32 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
   const qs = `from=${isoDate(start)}&to=${isoDate(end)}`;
   return (
     <div>
-      <PageHeader title="Laporan" desc={`${fmtDate(start)} - ${fmtDate(end)} · semua nilai disetarakan ke IDR dengan kurs saat transaksi`}>
-        <Link href={`/laporan/export?${qs}`} className="btn-secondary">Unduh CSV penjualan</Link>
+      <PageHeader title={t("Laporan")} desc={t("{from} - {to} · semua nilai disetarakan ke IDR dengan kurs saat transaksi", { from: fmtDate(start), to: fmtDate(end) })}>
+        <Link href={`/laporan/export?${qs}`} className="btn-secondary">{t("Unduh CSV penjualan")}</Link>
       </PageHeader>
       <form className="card mb-4 flex flex-wrap items-end gap-3">
         <div>
-          <label className="label">Dari</label>
+          <label className="label">{t("Dari")}</label>
           <input type="date" name="from" defaultValue={isoDate(start)} className="input" />
         </div>
         <div>
-          <label className="label">Sampai</label>
+          <label className="label">{t("Sampai")}</label>
           <input type="date" name="to" defaultValue={isoDate(end)} className="input" />
         </div>
-        <button className="btn-secondary">Tampilkan</button>
+        <button className="btn-secondary">{t("Tampilkan")}</button>
       </form>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title={`Penjualan per sumber · total ${formatMoney(total, "IDR")}`}>
-          <Bars rows={byChannel.map((c) => ({ label: CHANNELS[c.channel], value: c._sum.totalIdr ?? 0, sub: `${c._count} nota` }))} />
+        <Card title={t("Penjualan per sumber · total {total}", { total: formatMoney(total, "IDR") })}>
+          <Bars rows={byChannel.map((c) => ({ label: t(CHANNELS[c.channel]), value: c._sum.totalIdr ?? 0, sub: t("{n} nota", { n: c._count }) }))} t={t} />
         </Card>
-        <Card title="Per marketplace">
-          <Bars rows={byMarketplace.map((c) => ({ label: MARKETPLACES[c.marketplace ?? "LAINNYA"], value: c._sum.totalIdr ?? 0, sub: `${c._count} nota` }))} />
+        <Card title={t("Per marketplace")}>
+          <Bars rows={byMarketplace.map((c) => ({ label: t(MARKETPLACES[c.marketplace ?? "LAINNYA"]), value: c._sum.totalIdr ?? 0, sub: t("{n} nota", { n: c._count }) }))} t={t} />
         </Card>
-        <Card title="Per pameran / event">
-          <Bars rows={byEvent.map((c) => ({ label: events.find((e) => e.id === c.eventId)?.name ?? "-", value: c._sum.totalIdr ?? 0, sub: `${c._count} nota` }))} />
+        <Card title={t("Per pameran / event")}>
+          <Bars rows={byEvent.map((c) => ({ label: events.find((e) => e.id === c.eventId)?.name ?? "-", value: c._sum.totalIdr ?? 0, sub: t("{n} nota", { n: c._count }) }))} t={t} />
         </Card>
-        <Card title="Per mata uang">
+        <Card title={t("Per mata uang")}>
           <table className="tbl">
             <tbody>
               {byCurrency.map((c) => (
@@ -122,25 +125,25 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
             </tbody>
           </table>
         </Card>
-        <Card title="Per kategori produk">
-          <Bars rows={[...categoryMap.entries()].map(([k, v]) => ({ label: k, value: v }))} />
+        <Card title={t("Per kategori produk")}>
+          <Bars rows={[...categoryMap.entries()].map(([k, v]) => ({ label: k, value: v }))} t={t} />
         </Card>
-        <Card title="Per kasir">
-          <Bars rows={byCashier.map((c) => ({ label: users.find((u) => u.id === c.cashierId)?.name ?? "-", value: c._sum.totalIdr ?? 0, sub: `${c._count} nota` }))} />
+        <Card title={t("Per kasir")}>
+          <Bars rows={byCashier.map((c) => ({ label: users.find((u) => u.id === c.cashierId)?.name ?? "-", value: c._sum.totalIdr ?? 0, sub: t("{n} nota", { n: c._count }) }))} t={t} />
         </Card>
       </div>
 
-      <Card title="Rekonsiliasi uang per orang (periode ini)" className="mt-4">
+      <Card title={t("Rekonsiliasi uang per orang (periode ini)")} className="mt-4">
         <div className="overflow-x-auto">
           <table className="tbl">
             <thead>
               <tr>
-                <th>Dompet</th>
-                <th className="num">Dari penjualan</th>
-                <th className="num">Uang masuk lain</th>
-                <th className="num">Pengeluaran</th>
-                <th className="num">Disetor / diserahkan</th>
-                <th className="num">Saldo saat ini</th>
+                <th>{t("Dompet")}</th>
+                <th className="num">{t("Dari penjualan")}</th>
+                <th className="num">{t("Uang masuk lain")}</th>
+                <th className="num">{t("Pengeluaran")}</th>
+                <th className="num">{t("Disetor / diserahkan")}</th>
+                <th className="num">{t("Saldo saat ini")}</th>
               </tr>
             </thead>
             <tbody>
@@ -160,17 +163,17 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-neutral-500">Bandingkan kolom saldo dengan uang fisik yang dipegang. Jika beda, catat lewat Kas → Koreksi saldo beserta alasannya.</p>
+        <p className="mt-2 text-xs text-neutral-500">{t("Bandingkan kolom saldo dengan uang fisik yang dipegang. Jika beda, catat lewat Kas → Koreksi saldo beserta alasannya.")}</p>
       </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card title="Produk terlaris">
+        <Card title={t("Produk terlaris")}>
           <table className="tbl">
             <thead>
               <tr>
-                <th>Produk</th>
-                <th className="num">Qty</th>
-                <th className="num">≈ IDR</th>
+                <th>{t("Produk")}</th>
+                <th className="num">{t("Qty")}</th>
+                <th className="num">{t("≈ IDR")}</th>
               </tr>
             </thead>
             <tbody>
@@ -184,12 +187,12 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
             </tbody>
           </table>
         </Card>
-        <Card title="Pengeluaran">
+        <Card title={t("Pengeluaran")}>
           <table className="tbl">
             <tbody>
               {[...expenseByCat.entries()].map(([cat, m]) => (
                 <tr key={cat}>
-                  <td>{EXPENSE_CATEGORIES[cat]}</td>
+                  <td>{t(EXPENSE_CATEGORIES[cat])}</td>
                   <td className="num">{[...m.entries()].map(([cur, v]) => formatMoney(v, cur)).join(" + ")}</td>
                 </tr>
               ))}

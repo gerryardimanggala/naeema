@@ -4,8 +4,10 @@ import { latestRates } from "@/lib/reports";
 import { PageHeader } from "@/components/ui";
 import KasirForm from "./KasirForm";
 import { fmtDate } from "@/lib/time";
+import { getT } from "@/lib/i18n";
 
 export default async function KasirPage() {
+  const t = await getT();
   const user = await requireUser();
   const bid = user.businessId;
   const recent = new Date();
@@ -24,7 +26,7 @@ export default async function KasirPage() {
   ]);
   return (
     <div>
-      <PageHeader title="Kasir" desc="Catat penjualan: sumber, mata uang, dan siapa yang menerima uangnya." />
+      <PageHeader title={t("Kasir")} desc={t("Catat penjualan: sumber, mata uang, dan siapa yang menerima uangnya.")} />
       <KasirForm
         userId={user.id}
         rates={rates}

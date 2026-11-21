@@ -233,7 +233,7 @@ model CashMove {
   toAmount      Int? // mata uang dompet tujuan, diisi bila beda mata uang
   eventId       Int?
   event         Event?    @relation(fields: [eventId], references: [id])
-  category      String? // untuk pengeluaran: BOOTH | TRANSPORT | MAKAN | AKOMODASI | LAINNYA
+  category      String? // untuk pengeluaran: kunci EXPENSE_CATEGORIES di src/lib/constants.ts
   note          String?
   status        String    @default("PENDING") // PENDING | CONFIRMED | REJECTED
   createdById   Int

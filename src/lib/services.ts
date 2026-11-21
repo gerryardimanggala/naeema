@@ -2,11 +2,23 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { toIdr } from "./money";
 import { jakartaDay } from "./time";
+import { interpolate, type Vars } from "./i18n-core";
 
 type Tx = Prisma.TransactionClient;
 type Db = PrismaClient;
 
-export class BusinessError extends Error {}
+/**
+ * Pesan untuk pengguna. `key` adalah teks Indonesia dengan {nama} yang diisi dari vars;
+ * diterjemahkan saat ditampilkan. `message` berisi teks Indonesia yang sudah diisi (untuk log).
+ */
+export class BusinessError extends Error {
+  constructor(
+    public key: string,
+    public vars?: Vars,
+  ) {
+    super(interpolate(key, vars));
+  }
+}
 
 /** Pengguna yang sedang bertindak. Semua data dibatasi ke businessId miliknya. */
 export type Actor = { id: number; role: string; businessId: number };
@@ -70,7 +82,7 @@ export async function transferStock(
       });
       if (!s || s.qty < l.qty) {
         const v = s?.variant ?? (await tx.variant.findUnique({ where: { id: l.variantId } }));
-        throw new BusinessError(`Stok ${v?.sku ?? l.variantId} di lokasi asal hanya ${s?.qty ?? 0}.`);
+        throw new BusinessError("Stok {sku} di lokasi asal hanya {qty}.", { sku: v?.sku ?? l.variantId, qty: s?.qty ?? 0 });
       }
       await changeStock(tx, l.variantId, input.fromLocationId, -l.qty);
       await changeStock(tx, l.variantId, input.toLocationId, l.qty);
@@ -198,7 +210,7 @@ export async function createSale(db: Db, user: Actor, input: SaleInput) {
       const w = await tx.wallet.findFirst({ where: { id: p.walletId, businessId: user.businessId } });
       if (!w || !w.active) throw new BusinessError("Dompet penerima tidak ditemukan.");
       if (w.currency !== input.currency)
-        throw new BusinessError(`Dompet "${w.name}" memakai ${w.currency}, sedangkan penjualan dalam ${input.currency}.`);
+        throw new BusinessError('Dompet "{wallet}" memakai {cur}, sedangkan penjualan dalam {saleCur}.', { wallet: w.name, cur: w.currency, saleCur: input.currency });
     }
 
     const date = input.date ?? new Date();
@@ -301,7 +313,7 @@ export async function createCashMove(db: Db, user: Actor, input: CashMoveInput) 
     if (!to) throw new BusinessError("Pilih dompet tujuan.");
     if (from!.id === to.id) throw new BusinessError("Dompet asal dan tujuan tidak boleh sama.");
     if (from!.currency !== to.currency && !(input.toAmount && input.toAmount > 0))
-      throw new BusinessError(`Isi jumlah yang diterima dalam ${to.currency}.`);
+      throw new BusinessError("Isi jumlah yang diterima dalam {cur}.", { cur: to.currency });
     if (input.type === "EXCHANGE" && from!.currency === to.currency)
       throw new BusinessError("Tukar valas harus antar mata uang berbeda.");
   }
@@ -343,6 +355,15 @@ export async function decideCashMove(db: Db, user: Actor, id: number, approve: b
     where: { id },
     data: { status: approve ? "CONFIRMED" : "REJECTED", confirmedById: user.id, confirmedAt: new Date() },
   });
+}
+
+/** Batalkan pengeluaran yang salah catat. Uangnya kembali ke saldo dompet. */
+export async function cancelExpense(db: Db, user: Actor, id: number) {
+  const move = await db.cashMove.findFirst({ where: { id, businessId: user.businessId, type: "EXPENSE" } });
+  if (!move) throw new BusinessError("Data tidak ditemukan.");
+  if (move.status === "REJECTED") throw new BusinessError("Pengeluaran ini sudah dibatalkan.");
+  if (user.role === "STAFF" && move.createdById !== user.id) throw new BusinessError("Hanya admin atau pencatatnya yang bisa membatalkan.");
+  await db.cashMove.update({ where: { id }, data: { status: "REJECTED", confirmedById: user.id, confirmedAt: new Date() } });
 }
 
 export type WalletBalance = {

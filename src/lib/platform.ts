@@ -1,6 +1,7 @@
 // Pengaturan tingkat platform (di atas semua toko) dan pembuatan bisnis baru.
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { makeT, type T } from "./i18n-core";
 
 export const SIGNUP_MODES = {
   OPEN: "Terbuka: siapa saja bisa daftar dan langsung pakai",
@@ -33,8 +34,11 @@ export async function createBusinessWithOwner(
     pinHash: string;
     pending?: boolean;
     logo?: { bytes: Uint8Array<ArrayBuffer>; mime: string } | null;
+    /** Bahasa untuk nama lokasi, dompet, dan kategori awal. */
+    t?: T;
   },
 ) {
+  const t = input.t ?? makeT("id");
   const b = await tx.business.create({
     data: {
       name: input.businessName,
@@ -48,17 +52,17 @@ export async function createBusinessWithOwner(
   });
   await tx.location.createMany({
     data: [
-      { businessId: b.id, name: "Gudang", type: "WAREHOUSE" },
-      { businessId: b.id, name: "Toko Offline", type: "STORE" },
+      { businessId: b.id, name: t("Gudang"), type: "WAREHOUSE" },
+      { businessId: b.id, name: t("Toko Offline"), type: "STORE" },
     ],
   });
   await tx.wallet.createMany({
     data: [
-      { businessId: b.id, name: "Rekening Bank", kind: "BANK", currency: "IDR" },
-      { businessId: b.id, name: `Kas ${input.ownerName}`, kind: "PERSON", ownerId: owner.id, currency: "IDR" },
+      { businessId: b.id, name: t("Rekening Bank"), kind: "BANK", currency: "IDR" },
+      { businessId: b.id, name: t("Kas {name}", { name: input.ownerName }), kind: "PERSON", ownerId: owner.id, currency: "IDR" },
     ],
   });
-  await tx.category.create({ data: { businessId: b.id, name: "Umum" } });
+  await tx.category.create({ data: { businessId: b.id, name: t("Umum") } });
   return { business: b, owner };
 }
 

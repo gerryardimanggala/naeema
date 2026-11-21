@@ -6,8 +6,10 @@ import { formatMoney } from "@/lib/money";
 import { CHANNELS, MARKETPLACES } from "@/lib/constants";
 import { Card, Empty, Flash, PageHeader, str, type SP } from "@/components/ui";
 import { fmtDateTime } from "@/lib/time";
+import { getT } from "@/lib/i18n";
 
 export default async function PenjualanPage({ searchParams }: { searchParams: SP }) {
+  const t = await getT();
   const sp = await searchParams;
   const user = await requireUser();
   const admin = isAdmin(user);
@@ -34,59 +36,59 @@ export default async function PenjualanPage({ searchParams }: { searchParams: SP
 
   return (
     <div>
-      <PageHeader title="Penjualan" desc={admin ? "Semua nota penjualan." : "Nota yang saya input."}>
-        <Link href="/kasir" className="btn">+ Penjualan baru</Link>
+      <PageHeader title={t("Penjualan")} desc={admin ? t("Semua nota penjualan.") : t("Nota yang saya input.")}>
+        <Link href="/kasir" className="btn">{t("+ Penjualan baru")}</Link>
       </PageHeader>
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       <form className="card mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         <div>
-          <label className="label">Dari</label>
+          <label className="label">{t("Dari")}</label>
           <input type="date" name="from" defaultValue={isoDate(start)} className="input" />
         </div>
         <div>
-          <label className="label">Sampai</label>
+          <label className="label">{t("Sampai")}</label>
           <input type="date" name="to" defaultValue={isoDate(end)} className="input" />
         </div>
         <div>
-          <label className="label">Sumber</label>
+          <label className="label">{t("Sumber")}</label>
           <select name="channel" defaultValue={channel} className="input">
-            <option value="">Semua</option>
+            <option value="">{t("Semua")}</option>
             {Object.entries(CHANNELS).map(([k, l]) => (
-              <option key={k} value={k}>{l}</option>
+              <option key={k} value={k}>{t(l)}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="label">Event</label>
+          <label className="label">{t("Event")}</label>
           <select name="eventId" defaultValue={eventId ?? ""} className="input">
-            <option value="">Semua</option>
+            <option value="">{t("Semua")}</option>
             {events.map((e) => (
               <option key={e.id} value={e.id}>{e.name}</option>
             ))}
           </select>
         </div>
         <div className="flex items-end">
-          <button className="btn-secondary w-full">Tampilkan</button>
+          <button className="btn-secondary w-full">{t("Tampilkan")}</button>
         </div>
       </form>
       <Card>
         <div className="mb-2 text-sm text-neutral-600">
-          {paid.length} nota · total {formatMoney(totalIdr, "IDR")}
+          {t("{n} nota · total {total}", { n: paid.length, total: formatMoney(totalIdr, "IDR") })}
         </div>
         {sales.length === 0 ? (
-          <Empty>Belum ada penjualan di periode ini.</Empty>
+          <Empty>{t("Belum ada penjualan di periode ini.")}</Empty>
         ) : (
           <div className="overflow-x-auto">
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>Nota</th>
-                  <th>Tanggal</th>
-                  <th>Sumber</th>
-                  <th>Kasir</th>
-                  <th>Uang masuk ke</th>
-                  <th className="num">Total</th>
-                  <th className="num">Setara IDR</th>
+                  <th>{t("Nota")}</th>
+                  <th>{t("Tanggal")}</th>
+                  <th>{t("Sumber")}</th>
+                  <th>{t("Kasir")}</th>
+                  <th>{t("Uang masuk ke")}</th>
+                  <th className="num">{t("Total")}</th>
+                  <th className="num">{t("Setara IDR")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,8 +99,8 @@ export default async function PenjualanPage({ searchParams }: { searchParams: SP
                     </td>
                     <td className="whitespace-nowrap">{fmtDateTime(s.date)}</td>
                     <td>
-                      {CHANNELS[s.channel]}
-                      {s.marketplace && <div className="text-xs text-neutral-500">{MARKETPLACES[s.marketplace]}</div>}
+                      {t(CHANNELS[s.channel])}
+                      {s.marketplace && <div className="text-xs text-neutral-500">{t(MARKETPLACES[s.marketplace])}</div>}
                       {s.event && <div className="text-xs text-neutral-500">{s.event.name}</div>}
                     </td>
                     <td>{s.cashier.name}</td>

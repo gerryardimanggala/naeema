@@ -8,8 +8,10 @@ import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 import { StoreLogo } from "@/components/brand";
 import { LOGO_ACCEPT } from "@/lib/logo";
 import { fmtDate } from "@/lib/time";
+import { getT } from "@/lib/i18n";
 
 export default async function PengaturanPage({ searchParams }: { searchParams: SP }) {
+  const t = await getT();
   const sp = await searchParams;
   const me = await requireAdmin();
   const bid = me.businessId;
@@ -28,73 +30,72 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
   const latest = CURRENCIES.filter((c) => c !== "IDR").map((c) => rates.find((r) => r.currency === c));
   return (
     <div>
-      <PageHeader title="Pengaturan" desc="Bisnis, kategori, pengguna, dompet, kurs, dan lokasi stok." />
+      <PageHeader title={t("Pengaturan")} desc={t("Bisnis, kategori, pengguna, dompet, kurs, dan lokasi stok.")} />
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Bisnis">
+        <Card title={t("Bisnis")}>
           <form action={saveBusiness} className="flex flex-wrap items-end gap-3">
             <StoreLogo business={business} size={64} />
             <div className="min-w-[10rem] flex-1 space-y-2">
               <div>
-                <label className="label">Nama bisnis</label>
+                <label className="label">{t("Nama bisnis")}</label>
                 <input name="name" defaultValue={business.name} className="input" required maxLength={80} disabled={me.role !== "OWNER"} />
               </div>
               {me.role === "OWNER" && (
                 <div>
-                  <label className="label">{business.logoAt ? "Ganti logo" : "Unggah logo"} (PNG/JPG/WEBP, maks. 512 KB)</label>
+                  <label className="label">{business.logoAt ? t("Ganti logo") : t("Unggah logo")} {t("(PNG/JPG/WEBP, maks. 512 KB)")}</label>
                   <input name="logo" type="file" accept={LOGO_ACCEPT} className="input" />
                 </div>
               )}
             </div>
-            {me.role === "OWNER" && <button className="btn">Simpan</button>}
+            {me.role === "OWNER" && <button className="btn">{t("Simpan")}</button>}
           </form>
           <p className="mt-2 text-sm">
-            Kode toko: <b>{business.slug}</b>
+            {t("Kode toko:")} <b>{business.slug}</b>
           </p>
           <p className="mt-1 text-xs text-neutral-500">
-            Tim Anda memasukkan kode toko ini saat pertama kali masuk di perangkat baru. Logo dan nama bisnis tampil di halaman masuk, menu atas, dan struk
-            (kalau nama toko di pengaturan struk dikosongkan).
+            {t("Tim Anda memasukkan kode toko ini saat pertama kali masuk di perangkat baru. Logo dan nama bisnis tampil di halaman masuk, menu atas, dan struk (kalau nama toko di pengaturan struk dikosongkan).")}
           </p>
         </Card>
 
-        <Card title="Kategori produk">
+        <Card title={t("Kategori produk")}>
           <div id="kategori" className="space-y-2">
             {categories.map((c) => (
               <form key={c.id} action={saveCategory} className="flex items-center gap-2">
                 <input type="hidden" name="id" value={c.id} />
                 <input name="name" defaultValue={c.name} className="input flex-1" required maxLength={60} />
-                <span className="w-16 text-right text-xs text-neutral-500">{c._count.products} produk</span>
+                <span className="w-16 text-right text-xs text-neutral-500">{t("{n} produk", { n: c._count.products })}</span>
                 <label className="flex items-center gap-1 text-xs">
-                  <input type="checkbox" name="active" defaultChecked={c.active} /> aktif
+                  <input type="checkbox" name="active" defaultChecked={c.active} /> {t("aktif")}
                 </label>
-                <button className="btn-secondary">Simpan</button>
+                <button className="btn-secondary">{t("Simpan")}</button>
               </form>
             ))}
-            {!categories.length && <p className="text-sm text-neutral-500">Belum ada kategori.</p>}
+            {!categories.length && <p className="text-sm text-neutral-500">{t("Belum ada kategori.")}</p>}
           </div>
           <form action={saveCategory} className="mt-3 flex items-end gap-2 border-t border-neutral-200 pt-3">
             <div className="flex-1">
-              <label className="label">Kategori baru</label>
-              <input name="name" className="input" required maxLength={60} placeholder="mis. Hijab, Mukena, Aksesoris" />
+              <label className="label">{t("Kategori baru")}</label>
+              <input name="name" className="input" required maxLength={60} placeholder={t("mis. Hijab, Mukena, Aksesoris")} />
             </div>
-            <button className="btn">Tambah</button>
+            <button className="btn">{t("Tambah")}</button>
           </form>
-          <p className="mt-2 text-xs text-neutral-500">Kategori nonaktif tidak muncul saat menambah produk baru, tapi produk lama tetap tersimpan.</p>
+          <p className="mt-2 text-xs text-neutral-500">{t("Kategori nonaktif tidak muncul saat menambah produk baru, tapi produk lama tetap tersimpan.")}</p>
         </Card>
 
-        <Card title="Kurs ke IDR">
+        <Card title={t("Kurs ke IDR")}>
           <div className="mb-3 grid grid-cols-2 gap-2">
             {latest.map((r, i) => (
               <div key={i} className="rounded-lg border border-neutral-200 p-3">
                 <div className="text-xs text-neutral-500">1 {r?.currency ?? CURRENCIES[i + 1]}</div>
-                <div className="text-lg font-semibold">{r ? `Rp ${formatRate(r.idrPerUnit)}` : "belum diisi"}</div>
+                <div className="text-lg font-semibold">{r ? `Rp ${formatRate(r.idrPerUnit)}` : t("belum diisi")}</div>
                 {r && <div className="text-xs text-neutral-500">{fmtDate(r.date)}</div>}
               </div>
             ))}
           </div>
           <form action={addRate} className="flex flex-wrap items-end gap-2">
             <div>
-              <label className="label">Mata uang</label>
+              <label className="label">{t("Mata uang")}</label>
               <select name="currency" className="input">
                 {CURRENCIES.filter((c) => c !== "IDR").map((c) => (
                   <option key={c}>{c}</option>
@@ -102,15 +103,15 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
               </select>
             </div>
             <div className="flex-1">
-              <label className="label">IDR per 1 unit</label>
-              <input name="idrPerUnit" className="input" placeholder="mis. 3.650" required />
+              <label className="label">{t("IDR per 1 unit")}</label>
+              <input name="idrPerUnit" className="input" placeholder={t("mis. 3.650")} required />
             </div>
-            <button className="btn">Simpan kurs</button>
+            <button className="btn">{t("Simpan kurs")}</button>
           </form>
-          <p className="mt-2 text-xs text-neutral-500">Kurs ini jadi usulan di kasir. Setiap nota menyimpan kursnya sendiri, jadi mengubah kurs tidak mengubah nota lama.</p>
+          <p className="mt-2 text-xs text-neutral-500">{t("Kurs ini jadi usulan di kasir. Setiap nota menyimpan kursnya sendiri, jadi mengubah kurs tidak mengubah nota lama.")}</p>
         </Card>
 
-        <Card title="QR pembayaran">
+        <Card title={t("QR pembayaran")}>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {qrs.map((q) => (
               <div key={q.id} className={`rounded-lg border border-neutral-200 p-2 text-xs ${q.active ? "" : "opacity-50"}`}>
@@ -118,7 +119,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                 <img src={`/api/qr/${q.id}`} alt={`QR ${q.name}`} className="mb-1 aspect-square w-full rounded bg-white object-contain" />
                 <div className="font-medium">{q.name}</div>
                 <div className="text-neutral-500">
-                  {q.currency} · masuk ke {q.wallet.name}
+                  {q.currency} · {t("masuk ke {name}", { name: q.wallet.name })}
                 </div>
                 {q.note && <div className="text-neutral-500">{q.note}</div>}
                 <div className="mt-1 flex gap-3">
@@ -128,7 +129,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                   </form>
                   <form action={deletePaymentQr}>
                     <input type="hidden" name="id" value={q.id} />
-                    <button className="text-red-700 underline">hapus</button>
+                    <button className="text-red-700 underline">{t("hapus")}</button>
                   </form>
                 </div>
               </div>
@@ -136,11 +137,11 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
           </div>
           <form action={createPaymentQr} className="grid grid-cols-2 gap-2">
             <div>
-              <label className="label">Nama</label>
-              <input name="name" className="input" required placeholder="mis. QRIS BCA, Touch 'n Go" />
+              <label className="label">{t("Nama")}</label>
+              <input name="name" className="input" required placeholder={t("mis. QRIS BCA, Touch 'n Go")} />
             </div>
             <div>
-              <label className="label">Uang masuk ke</label>
+              <label className="label">{t("Uang masuk ke")}</label>
               <select name="walletId" className="input" required>
                 {wallets.filter((w) => w.active).map((w) => (
                   <option key={w.id} value={w.id}>
@@ -150,91 +151,91 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
               </select>
             </div>
             <div className="col-span-2">
-              <label className="label">Gambar QR (PNG/JPG, maks. 1 MB)</label>
+              <label className="label">{t("Gambar QR (PNG/JPG, maks. 1 MB)")}</label>
               <input name="image" type="file" accept="image/png,image/jpeg,image/webp" required className="input" />
             </div>
             <div className="col-span-2">
-              <label className="label">Catatan untuk pembeli (opsional)</label>
-              <input name="note" className="input" placeholder="mis. a.n. nama rekening" />
+              <label className="label">{t("Catatan untuk pembeli (opsional)")}</label>
+              <input name="note" className="input" placeholder={t("mis. a.n. nama rekening")} />
             </div>
-            <button className="btn col-span-2">Tambah QR</button>
+            <button className="btn col-span-2">{t("Tambah QR")}</button>
           </form>
-          <p className="mt-2 text-xs text-neutral-500">Mata uang QR mengikuti dompet penerimanya. Di kasir, QR yang muncul hanya yang sesuai mata uang penjualan.</p>
+          <p className="mt-2 text-xs text-neutral-500">{t("Mata uang QR mengikuti dompet penerimanya. Di kasir, QR yang muncul hanya yang sesuai mata uang penjualan.")}</p>
         </Card>
 
-        <Card title="Struk (printer thermal)">
+        <Card title={t("Struk (printer thermal)")}>
           <form action={saveReceiptSettings} className="grid grid-cols-2 gap-2">
             <div className="col-span-2">
-              <label className="label">Nama toko di struk</label>
+              <label className="label">{t("Nama toko di struk")}</label>
               <input name="storeName" defaultValue={receipt.storeName} className="input" />
             </div>
             <div className="col-span-2">
-              <label className="label">Alamat</label>
+              <label className="label">{t("Alamat")}</label>
               <input name="address" defaultValue={receipt.address} className="input" />
             </div>
             <div>
-              <label className="label">Telepon / Instagram</label>
+              <label className="label">{t("Telepon / Instagram")}</label>
               <input name="phone" defaultValue={receipt.phone} className="input" />
             </div>
             <div>
-              <label className="label">Lebar kertas</label>
+              <label className="label">{t("Lebar kertas")}</label>
               <select name="paperWidth" defaultValue={receipt.paperWidth} className="input">
-                <option value="58">58 mm (32 karakter)</option>
-                <option value="80">80 mm (48 karakter)</option>
+                <option value="58">{t("58 mm (32 karakter)")}</option>
+                <option value="80">{t("80 mm (48 karakter)")}</option>
               </select>
             </div>
             <div className="col-span-2">
-              <label className="label">Pesan di bawah struk</label>
+              <label className="label">{t("Pesan di bawah struk")}</label>
               <input name="footer" defaultValue={receipt.footer} className="input" />
             </div>
             <label className="col-span-2 flex items-center gap-2 text-sm">
-              <input type="checkbox" name="showLogo" defaultChecked={receipt.showLogo !== "0"} /> Cetak logo toko di atas struk
-              {!business.logoAt && <span className="text-xs text-neutral-500">(unggah logo dulu di bagian Bisnis)</span>}
+              <input type="checkbox" name="showLogo" defaultChecked={receipt.showLogo !== "0"} /> {t("Cetak logo toko di atas struk")}
+              {!business.logoAt && <span className="text-xs text-neutral-500">{t("(unggah logo dulu di bagian Bisnis)")}</span>}
             </label>
-            <button className="btn col-span-2">Simpan pengaturan struk</button>
+            <button className="btn col-span-2">{t("Simpan pengaturan struk")}</button>
           </form>
         </Card>
 
-        <Card title="Lokasi stok">
+        <Card title={t("Lokasi stok")}>
           <ul className="mb-3 text-sm">
             {locations.map((l) => (
               <li key={l.id} className="flex justify-between border-b border-neutral-100 py-1.5">
                 <span>{l.name}</span>
-                <span className="badge">{LOCATION_TYPES[l.type]}</span>
+                <span className="badge">{t(LOCATION_TYPES[l.type])}</span>
               </li>
             ))}
           </ul>
           <form action={createLocation} className="flex flex-wrap items-end gap-2">
             <div className="flex-1">
-              <label className="label">Nama lokasi</label>
+              <label className="label">{t("Nama lokasi")}</label>
               <input name="name" className="input" required />
             </div>
             <div>
-              <label className="label">Tipe</label>
+              <label className="label">{t("Tipe")}</label>
               <select name="type" className="input">
                 {Object.entries(LOCATION_TYPES).filter(([k]) => k !== "EVENT").map(([k, l]) => (
-                  <option key={k} value={k}>{l}</option>
+                  <option key={k} value={k}>{t(l)}</option>
                 ))}
               </select>
             </div>
-            <button className="btn">Tambah</button>
+            <button className="btn">{t("Tambah")}</button>
           </form>
-          <p className="mt-2 text-xs text-neutral-500">Lokasi booth pameran dibuat otomatis saat membuat event.</p>
+          <p className="mt-2 text-xs text-neutral-500">{t("Lokasi booth pameran dibuat otomatis saat membuat event.")}</p>
         </Card>
 
-        <Card title="Pengguna">
+        <Card title={t("Pengguna")}>
           <table className="tbl mb-3">
             <tbody>
               {users.map((u) => (
                 <tr key={u.id} className={u.active ? "" : "text-neutral-400"}>
                   <td>{u.name}</td>
-                  <td>{ROLES[u.role]}</td>
+                  <td>{t(ROLES[u.role])}</td>
                   <td>
                     {(u.role !== "OWNER" || me.role === "OWNER") && (
                       <form action={resetPin} className="flex gap-1">
                         <input type="hidden" name="id" value={u.id} />
-                        <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" maxLength={8} required placeholder="PIN baru" className="input w-24 px-2 py-1 text-xs" />
-                        <button className="text-xs underline">ganti PIN</button>
+                        <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" maxLength={8} required placeholder={t("PIN baru")} className="input w-24 px-2 py-1 text-xs" />
+                        <button className="text-xs underline">{t("ganti PIN")}</button>
                       </form>
                     )}
                   </td>
@@ -242,7 +243,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                     {u.id !== me.id && (
                       <form action={toggleUser}>
                         <input type="hidden" name="id" value={u.id} />
-                        <button className="text-xs underline">{u.active ? "nonaktifkan" : "aktifkan"}</button>
+                        <button className="text-xs underline">{u.active ? t("nonaktifkan") : t("aktifkan")}</button>
                       </form>
                     )}
                   </td>
@@ -252,34 +253,34 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
           </table>
           <form action={createUser} className="grid grid-cols-2 gap-2">
             <div>
-              <label className="label">Nama</label>
+              <label className="label">{t("Nama")}</label>
               <input name="name" className="input" required />
             </div>
             <div>
-              <label className="label">Peran</label>
+              <label className="label">{t("Peran")}</label>
               <select name="role" className="input" defaultValue="STAFF">
                 {Object.entries(ROLES).map(([k, l]) => (
-                  <option key={k} value={k}>{l}</option>
+                  <option key={k} value={k}>{t(l)}</option>
                 ))}
               </select>
             </div>
             <div className="col-span-2">
-              <label className="label">PIN awal (4-8 angka, beri tahu orangnya)</label>
+              <label className="label">{t("PIN awal (4-8 angka, beri tahu orangnya)")}</label>
               <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" maxLength={8} required className="input" />
             </div>
             <div className="col-span-2 flex flex-wrap gap-3 text-sm">
-              <span className="text-xs text-neutral-500">Buatkan dompet kas:</span>
+              <span className="text-xs text-neutral-500">{t("Buatkan dompet kas:")}</span>
               {CURRENCIES.map((c) => (
                 <label key={c} className="flex items-center gap-1">
                   <input type="checkbox" name={`wallet_${c}`} defaultChecked={c === "IDR"} /> {c}
                 </label>
               ))}
             </div>
-            <button className="btn col-span-2">Tambah pengguna</button>
+            <button className="btn col-span-2">{t("Tambah pengguna")}</button>
           </form>
         </Card>
 
-        <Card title="Dompet & rekening">
+        <Card title={t("Dompet & rekening")}>
           <table className="tbl mb-3">
             <tbody>
               {wallets.map((w) => (
@@ -287,7 +288,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                   <td>
                     {w.name}
                     <div className="text-xs text-neutral-500">
-                      {WALLET_KINDS[w.kind]}
+                      {t(WALLET_KINDS[w.kind])}
                       {w.owner && ` · ${w.owner.name}`}
                     </div>
                   </td>
@@ -295,7 +296,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                   <td className="text-right">
                     <form action={toggleWallet}>
                       <input type="hidden" name="id" value={w.id} />
-                      <button className="text-xs underline">{w.active ? "nonaktifkan" : "aktifkan"}</button>
+                      <button className="text-xs underline">{w.active ? t("nonaktifkan") : t("aktifkan")}</button>
                     </form>
                   </td>
                 </tr>
@@ -304,19 +305,19 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
           </table>
           <form action={createWallet} className="grid grid-cols-2 gap-2">
             <div className="col-span-2">
-              <label className="label">Nama</label>
-              <input name="name" className="input" required placeholder="mis. Rekening Mandiri" />
+              <label className="label">{t("Nama")}</label>
+              <input name="name" className="input" required placeholder={t("mis. Rekening Mandiri")} />
             </div>
             <div>
-              <label className="label">Jenis</label>
+              <label className="label">{t("Jenis")}</label>
               <select name="kind" className="input">
                 {Object.entries(WALLET_KINDS).map(([k, l]) => (
-                  <option key={k} value={k}>{l}</option>
+                  <option key={k} value={k}>{t(l)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label">Mata uang</label>
+              <label className="label">{t("Mata uang")}</label>
               <select name="currency" className="input">
                 {CURRENCIES.map((c) => (
                   <option key={c}>{c}</option>
@@ -324,7 +325,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
               </select>
             </div>
             <div className="col-span-2">
-              <label className="label">Pemegang (untuk jenis &quot;dipegang orang&quot;)</label>
+              <label className="label">{t('Pemegang (untuk jenis "dipegang orang")')}</label>
               <select name="ownerId" className="input">
                 <option value="">-</option>
                 {users.filter((u) => u.active).map((u) => (
@@ -332,7 +333,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                 ))}
               </select>
             </div>
-            <button className="btn col-span-2">Tambah dompet</button>
+            <button className="btn col-span-2">{t("Tambah dompet")}</button>
           </form>
         </Card>
       </div>

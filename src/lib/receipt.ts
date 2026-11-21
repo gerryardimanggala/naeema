@@ -3,6 +3,7 @@
 import { formatMoney, formatRate } from "./money";
 import { CHANNELS, MARKETPLACES, PAYMENT_METHODS } from "./constants";
 import { fmtDateTime } from "./time";
+import { makeT, type T } from "./i18n-core";
 
 export type ReceiptSettings = {
   storeName: string;
@@ -84,23 +85,24 @@ export function leftRight(left: string, right: string, cols: number) {
   return l + " ".repeat(Math.max(1, cols - l.length - r.length)) + r;
 }
 
-export function buildReceipt(sale: ReceiptSale, s: ReceiptSettings): ReceiptLine[] {
+/** t: bahasa struk (bawaan Indonesia). Footer bawaan ikut diterjemahkan; footer buatan toko tampil apa adanya. */
+export function buildReceipt(sale: ReceiptSale, s: ReceiptSettings, t: T = makeT("id")): ReceiptLine[] {
   const cols = receiptColumns(s.paperWidth);
   const money = (v: number) => formatMoney(v, sale.currency);
   const rule = { text: "-".repeat(cols) };
   const lines: ReceiptLine[] = [];
 
-  lines.push(...wrap(s.storeName || "TOKO", cols).map((text) => ({ text, bold: true, center: true, big: true })));
-  for (const t of [s.address, s.phone]) if (t) lines.push(...wrap(t, cols).map((text) => ({ text, center: true })));
+  lines.push(...wrap(s.storeName || t("TOKO"), cols).map((text) => ({ text, bold: true, center: true, big: true })));
+  for (const x of [s.address, s.phone]) if (x) lines.push(...wrap(x, cols).map((text) => ({ text, center: true })));
   lines.push(rule);
 
-  lines.push({ text: leftRight("No", sale.number, cols) });
-  lines.push({ text: leftRight("Tanggal", fmtDateTime(sale.date), cols) });
-  lines.push({ text: leftRight("Kasir", sale.cashier.name, cols) });
-  const source = sale.event?.name ?? (sale.marketplace ? MARKETPLACES[sale.marketplace] : CHANNELS[sale.channel]);
+  lines.push({ text: leftRight(t("No"), sale.number, cols) });
+  lines.push({ text: leftRight(t("Tanggal"), fmtDateTime(sale.date), cols) });
+  lines.push({ text: leftRight(t("Kasir"), sale.cashier.name, cols) });
+  const source = sale.event?.name ?? t(sale.marketplace ? MARKETPLACES[sale.marketplace] : CHANNELS[sale.channel]);
   if (source) lines.push(...wrap(source, cols).map((text) => ({ text })));
-  if (sale.externalRef) lines.push({ text: leftRight("Pesanan", sale.externalRef, cols) });
-  if (sale.status === "VOID") lines.push({ text: "*** DIBATALKAN ***", bold: true, center: true });
+  if (sale.externalRef) lines.push({ text: leftRight(t("Pesanan"), sale.externalRef, cols) });
+  if (sale.status === "VOID") lines.push({ text: t("*** DIBATALKAN ***"), bold: true, center: true });
   lines.push(rule);
 
   for (const i of sale.items) {
@@ -111,14 +113,14 @@ export function buildReceipt(sale: ReceiptSale, s: ReceiptSettings): ReceiptLine
   lines.push(rule);
 
   if (sale.discount > 0) {
-    lines.push({ text: leftRight("Subtotal", money(sale.subtotal), cols) });
-    lines.push({ text: leftRight("Diskon", "-" + money(sale.discount), cols) });
+    lines.push({ text: leftRight(t("Subtotal"), money(sale.subtotal), cols) });
+    lines.push({ text: leftRight(t("Diskon"), "-" + money(sale.discount), cols) });
   }
   lines.push({ text: leftRight("TOTAL", money(sale.total), cols), bold: true });
-  for (const p of sale.payments) lines.push({ text: leftRight(PAYMENT_METHODS[p.method] ?? p.method, money(p.amount), cols) });
-  if (sale.currency !== "IDR") lines.push({ text: `Kurs 1 ${sale.currency} = Rp ${ascii(formatRate(sale.rateToIdr))}` });
+  for (const p of sale.payments) lines.push({ text: leftRight(t(PAYMENT_METHODS[p.method] ?? p.method), money(p.amount), cols) });
+  if (sale.currency !== "IDR") lines.push({ text: t("Kurs 1 {cur} = Rp {rate}", { cur: sale.currency, rate: ascii(formatRate(sale.rateToIdr)) }) });
   lines.push(rule);
 
-  if (s.footer) lines.push(...wrap(s.footer, cols).map((text) => ({ text, center: true })));
+  if (s.footer) lines.push(...wrap(s.footer === DEFAULT_RECEIPT.footer ? t(s.footer) : s.footer, cols).map((text) => ({ text, center: true })));
   return lines.map((l) => ({ ...l, text: ascii(l.text) }));
 }

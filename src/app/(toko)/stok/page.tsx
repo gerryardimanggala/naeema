@@ -5,8 +5,10 @@ import { LOCATION_TYPES, STOCK_MOVE_TYPES } from "@/lib/constants";
 import { stockAdjustAction, stockInAction, stockTransferAction } from "../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 import { fmtDateTime } from "@/lib/time";
+import { getT } from "@/lib/i18n";
 
 export default async function StokPage({ searchParams }: { searchParams: SP }) {
+  const t = await getT();
   const sp = await searchParams;
   const user = await requireUser();
   const bid = user.businessId;
@@ -36,9 +38,9 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
       <table className="tbl">
         <thead>
           <tr>
-            <th>Produk</th>
-            {showLoc && <th className="num">Stok asal</th>}
-            <th className="num w-28">Jumlah</th>
+            <th>{t("Produk")}</th>
+            {showLoc && <th className="num">{t("Stok asal")}</th>}
+            <th className="num w-28">{t("Jumlah|qty")}</th>
           </tr>
         </thead>
         <tbody>
@@ -64,12 +66,12 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
 
   return (
     <div>
-      <PageHeader title="Stok" desc="Stok per gudang, toko, dan booth pameran." />
+      <PageHeader title={t("Stok")} desc={t("Stok per gudang, toko, dan booth pameran.")} />
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       <div className="mb-4 flex gap-1 overflow-x-auto">
         {tabs.map(([k, l]) => (
           <Link key={k} href={`/stok?tab=${k}`} className={tab === k ? "btn" : "btn-secondary"}>
-            {l}
+            {t(l)}
           </Link>
         ))}
       </div>
@@ -80,14 +82,14 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>Produk</th>
+                  <th>{t("Produk")}</th>
                   {locations.map((l) => (
                     <th key={l.id} className="num">
                       {l.name}
-                      <div className="font-normal">{LOCATION_TYPES[l.type]}</div>
+                      <div className="font-normal">{t(LOCATION_TYPES[l.type])}</div>
                     </th>
                   ))}
-                  <th className="num">Total</th>
+                  <th className="num">{t("Total")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -114,16 +116,16 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs text-neutral-500">Angka merah = stok minus (terjual melebihi catatan stok). Cek dan lakukan stock opname.</p>
+          <p className="mt-3 text-xs text-neutral-500">{t("Angka merah = stok minus (terjual melebihi catatan stok). Cek dan lakukan stock opname.")}</p>
         </Card>
       )}
 
       {tab === "masuk" && admin && (
-        <Card title="Catat barang masuk (produksi / restock)">
+        <Card title={t("Catat barang masuk (produksi / restock)")}>
           <form action={stockInAction} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="label">Masuk ke</label>
+                <label className="label">{t("Masuk ke")}</label>
                 <select name="locationId" className="input">
                   {locations.filter((l) => l.type !== "EVENT").map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
@@ -131,29 +133,29 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
                 </select>
               </div>
               <div>
-                <label className="label">Catatan</label>
-                <input name="note" className="input" placeholder="mis. produksi batch Desember" />
+                <label className="label">{t("Catatan")}</label>
+                <input name="note" className="input" placeholder={t("mis. produksi batch Desember")} />
               </div>
             </div>
             {variantInputs()}
-            <button className="btn">Simpan barang masuk</button>
+            <button className="btn">{t("Simpan barang masuk")}</button>
           </form>
         </Card>
       )}
 
       {tab === "pindah" && (
-        <Card title="Pindah stok antar lokasi (mis. gudang → booth pameran)">
+        <Card title={t("Pindah stok antar lokasi (mis. gudang → booth pameran)")}>
           <form method="get" className="mb-3 flex flex-wrap items-end gap-2">
             <input type="hidden" name="tab" value="pindah" />
             <div>
-              <label className="label">Lihat stok asal di</label>
+              <label className="label">{t("Lihat stok asal di")}</label>
               <select name="from" defaultValue={str(sp.from)} className="input">
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
             </div>
-            <button className="btn-secondary">Ganti</button>
+            <button className="btn-secondary">{t("Ganti")}</button>
           </form>
           {(() => {
             const fromId = Number(str(sp.from)) || locations[0]?.id;
@@ -163,11 +165,11 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
                 <input type="hidden" name="back" value={`/stok?tab=pindah&from=${fromId}`} />
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="label">Dari</label>
+                    <label className="label">{t("Dari")}</label>
                     <div className="input bg-neutral-50">{locations.find((l) => l.id === fromId)?.name}</div>
                   </div>
                   <div>
-                    <label className="label">Ke</label>
+                    <label className="label">{t("Ke")}</label>
                     <select name="toLocationId" className="input">
                       {locations.filter((l) => l.id !== fromId).map((l) => (
                         <option key={l.id} value={l.id}>{l.name}</option>
@@ -175,12 +177,12 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
                     </select>
                   </div>
                   <div>
-                    <label className="label">Catatan</label>
+                    <label className="label">{t("Catatan")}</label>
                     <input name="note" className="input" />
                   </div>
                 </div>
                 {variantInputs(fromId)}
-                <button className="btn">Pindahkan</button>
+                <button className="btn">{t("Pindahkan")}</button>
               </form>
             );
           })()}
@@ -188,10 +190,10 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
       )}
 
       {tab === "opname" && admin && (
-        <Card title="Stock opname: isi jumlah fisik, sistem mencatat selisihnya">
+        <Card title={t("Stock opname: isi jumlah fisik, sistem mencatat selisihnya")}>
           <form action={stockAdjustAction} className="grid gap-3 sm:grid-cols-4">
             <div>
-              <label className="label">Lokasi</label>
+              <label className="label">{t("Lokasi")}</label>
               <select name="locationId" className="input">
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
@@ -199,7 +201,7 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Produk</label>
+              <label className="label">{t("Produk")}</label>
               <select name="variantId" className="input">
                 {variants.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -209,32 +211,32 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
               </select>
             </div>
             <div>
-              <label className="label">Jumlah fisik</label>
+              <label className="label">{t("Jumlah fisik")}</label>
               <input name="countedQty" type="number" min={0} className="input" required />
             </div>
             <div className="sm:col-span-3">
-              <label className="label">Catatan</label>
-              <input name="note" className="input" placeholder="mis. opname akhir bulan" />
+              <label className="label">{t("Catatan")}</label>
+              <input name="note" className="input" placeholder={t("mis. opname akhir bulan")} />
             </div>
             <div className="flex items-end">
-              <button className="btn w-full">Simpan</button>
+              <button className="btn w-full">{t("Simpan")}</button>
             </div>
           </form>
         </Card>
       )}
 
       {tab === "riwayat" && (
-        <Card title="200 mutasi stok terakhir">
+        <Card title={t("200 mutasi stok terakhir")}>
           <div className="overflow-x-auto">
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>Waktu</th>
-                  <th>Jenis</th>
-                  <th>Produk</th>
-                  <th>Dari → ke</th>
-                  <th className="num">Qty</th>
-                  <th>Oleh</th>
+                  <th>{t("Waktu")}</th>
+                  <th>{t("Jenis")}</th>
+                  <th>{t("Produk")}</th>
+                  <th>{t("Dari → ke")}</th>
+                  <th className="num">{t("Qty")}</th>
+                  <th>{t("Oleh")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,7 +244,7 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
                   <tr key={m.id}>
                     <td className="whitespace-nowrap">{fmtDateTime(m.createdAt)}</td>
                     <td>
-                      {STOCK_MOVE_TYPES[m.type]}
+                      {t(STOCK_MOVE_TYPES[m.type])}
                       {m.sale && (
                         <div className="text-xs">
                           <Link className="underline" href={`/penjualan/${m.sale.id}`}>{m.sale.number}</Link>

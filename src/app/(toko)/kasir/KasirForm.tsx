@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useT } from "@/components/I18nProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { saveSale } from "../actions";
@@ -40,6 +41,7 @@ export default function KasirForm(props: {
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
   const [result, setResult] = useState<{ ok: boolean; text: string; id?: number } | null>(null);
+  const { t } = useT();
   const [pending, startTransition] = useTransition();
   const [qrView, setQrView] = useState<{ payIndex: number | null; qrId: number } | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
@@ -173,7 +175,7 @@ export default function KasirForm(props: {
           router.push(`/penjualan/${res.id}/struk?auto=1`);
           return;
         }
-        setResult({ ok: true, text: `Tersimpan: ${res.number}`, id: res.id });
+        setResult({ ok: true, text: t("Tersimpan: {number}", { number: res.number }), id: res.id });
         setCart([]);
         setDiscount("");
         setPayments([]);
@@ -190,11 +192,11 @@ export default function KasirForm(props: {
       <div className="space-y-4">
         <section className="card space-y-3">
           <div>
-            <span className="label">Sumber penjualan</span>
+            <span className="label">{t("Sumber penjualan")}</span>
             <div className="grid grid-cols-3 gap-2">
               {Object.entries(CHANNELS).map(([k, label]) => (
                 <button key={k} type="button" onClick={() => applyChannel(k as typeof channel)} className={channel === k ? "btn" : "btn-secondary"}>
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
@@ -202,7 +204,7 @@ export default function KasirForm(props: {
           <div className="grid gap-3 sm:grid-cols-2">
             {channel === "EVENT" && (
               <div className="sm:col-span-2">
-                <label className="label">Pameran / event</label>
+                <label className="label">{t("Pameran / event")}</label>
                 {events.length ? (
                   <select className="input" value={eventId ?? ""} onChange={(e) => applyChannel("EVENT", Number(e.target.value))}>
                     {events.map((e) => (
@@ -213,7 +215,7 @@ export default function KasirForm(props: {
                   </select>
                 ) : (
                   <p className="text-sm text-neutral-500">
-                    Belum ada event aktif. <Link className="underline" href="/event">Buat event</Link>
+                    {t("Belum ada event aktif.")} <Link className="underline" href="/event">{t("Buat event")}</Link>
                   </p>
                 )}
               </div>
@@ -221,22 +223,22 @@ export default function KasirForm(props: {
             {channel === "MARKETPLACE" && (
               <>
                 <div>
-                  <label className="label">Marketplace</label>
+                  <label className="label">{t("Marketplace")}</label>
                   <select className="input" value={marketplace} onChange={(e) => { setMarketplace(e.target.value); setPayments([]); }}>
                     {Object.entries(MARKETPLACES).map(([k, l]) => (
-                      <option key={k} value={k}>{l}</option>
+                      <option key={k} value={k}>{t(l)}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="label">No. pesanan (opsional)</label>
+                  <label className="label">{t("No. pesanan (opsional)")}</label>
                   <input className="input" value={externalRef} onChange={(e) => setExternalRef(e.target.value)} />
                 </div>
               </>
             )}
             {channel !== "EVENT" && (
               <div>
-                <label className="label">Stok diambil dari</label>
+                <label className="label">{t("Stok diambil dari")}</label>
                 <select className="input" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))}>
                   {locations.map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
@@ -246,7 +248,7 @@ export default function KasirForm(props: {
             )}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="label">Mata uang</label>
+                <label className="label">{t("Mata uang")}</label>
                 <select className="input" value={currency} onChange={(e) => applyCurrency(e.target.value)}>
                   {CURRENCIES.map((c) => (
                     <option key={c}>{c}</option>
@@ -254,7 +256,7 @@ export default function KasirForm(props: {
                 </select>
               </div>
               <div>
-                <label className="label">Kurs (IDR per 1 {currency})</label>
+                <label className="label">{t("Kurs (IDR per 1 {cur})", { cur: currency })}</label>
                 <input className="input" inputMode="decimal" value={rate} disabled={currency === "IDR"} onChange={(e) => setRate(e.target.value)} />
               </div>
             </div>
@@ -262,7 +264,7 @@ export default function KasirForm(props: {
         </section>
 
         <section className="card">
-          <input className="input mb-3" placeholder="Cari nama produk, warna, atau SKU..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input mb-3" placeholder={t("Cari nama produk, warna, atau SKU...")} value={search} onChange={(e) => setSearch(e.target.value)} />
           <div className="grid max-h-[480px] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
             {filtered.map((v) => {
               const p = priceFor(v, currency, Number(rate));
@@ -273,19 +275,19 @@ export default function KasirForm(props: {
                   <div className="text-xs text-neutral-500">{v.detail || "-"} · {v.sku}</div>
                   <div className="mt-1 flex justify-between text-sm">
                     <span className="tabular-nums">{formatMoney(p.price, currency)}{p.converted && <span className="text-xs text-amber-700"> *</span>}</span>
-                    <span className={`text-xs ${st <= 0 ? "text-red-600" : "text-neutral-500"}`}>stok {st}</span>
+                    <span className={`text-xs ${st <= 0 ? "text-red-600" : "text-neutral-500"}`}>{t("stok {n}", { n: st })}</span>
                   </div>
                 </button>
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-neutral-500">* belum ada harga resmi dalam {currency}, dihitung dari harga IDR dibagi kurs.</p>
+          <p className="mt-2 text-xs text-neutral-500">{t("* belum ada harga resmi dalam {cur}, dihitung dari harga IDR dibagi kurs.", { cur: currency })}</p>
         </section>
       </div>
 
       <aside id="nota" className="card mb-16 h-fit scroll-mt-16 space-y-3 lg:sticky lg:top-16 lg:mb-0">
-        <h2 className="text-sm font-semibold">Nota</h2>
-        {cart.length === 0 && <p className="text-sm text-neutral-500">Pilih produk di sebelah kiri.</p>}
+        <h2 className="text-sm font-semibold">{t("Nota")}</h2>
+        {cart.length === 0 && <p className="text-sm text-neutral-500">{t("Pilih produk di sebelah kiri.")}</p>}
         {cart.map((l) => {
           const v = variants.find((x) => x.id === l.variantId)!;
           return (
@@ -295,7 +297,7 @@ export default function KasirForm(props: {
                   {v.name} <span className="text-neutral-500">{v.detail}</span>
                 </span>
                 <button type="button" className="text-xs text-red-600" onClick={() => setCart((c) => c.filter((x) => x.variantId !== l.variantId))}>
-                  hapus
+                  {t("hapus")}
                 </button>
               </div>
               <div className="mt-1 grid grid-cols-[80px_1fr_auto] items-center gap-2">
@@ -313,30 +315,30 @@ export default function KasirForm(props: {
           );
         })}
         <div className="flex items-center justify-between gap-2 text-sm">
-          <span>Diskon ({currency})</span>
+          <span>{t("Diskon ({cur})", { cur: currency })}</span>
           <input className="input w-32 text-right" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
         </div>
         <div className="flex justify-between text-lg font-semibold">
-          <span>Total</span>
+          <span>{t("Total")}</span>
           <span className="tabular-nums">{formatMoney(total, currency)}</span>
         </div>
         {currency !== "IDR" && <div className="text-right text-xs text-neutral-500">≈ {formatMoney(Math.round(fromMinor(total, currency) * Number(rate || 0)), "IDR")}</div>}
 
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold">Pembayaran & penerima uang</span>
+            <span className="text-sm font-semibold">{t("Pembayaran & penerima uang")}</span>
             <div className="flex gap-3">
               {curQrs.length > 0 && !effectivePayments.some((p) => p.method === "QR") && (
                 <button type="button" className="text-xs font-medium underline" onClick={() => openQr(null)}>
-                  Bayar pakai QR
+                  {t("Bayar pakai QR")}
                 </button>
               )}
               <button type="button" className="text-xs underline" onClick={() => setPayments([...effectivePayments, { method: "TRANSFER", amount: "", walletId: defaultWallet("TRANSFER")?.id ?? 0 }])}>
-                + bayar campur
+                {t("+ bayar campur")}
               </button>
             </div>
           </div>
-          {curWallets.length === 0 && <p className="text-sm text-red-700">Belum ada dompet dalam {currency}. Tambahkan di Pengaturan.</p>}
+          {curWallets.length === 0 && <p className="text-sm text-red-700">{t("Belum ada dompet dalam {cur}. Tambahkan di Pengaturan.", { cur: currency })}</p>}
           {effectivePayments.map((p, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 rounded-lg bg-neutral-50 p-2">
               <select
@@ -349,7 +351,7 @@ export default function KasirForm(props: {
                 }}
               >
                 {Object.entries(PAYMENT_METHODS).map(([k, l]) => (
-                  <option key={k} value={k}>{l}</option>
+                  <option key={k} value={k}>{t(l)}</option>
                 ))}
               </select>
               <input
@@ -372,25 +374,25 @@ export default function KasirForm(props: {
                 }}
               >
                 {curWallets.map((w) => (
-                  <option key={w.id} value={w.id}>Uang masuk ke: {w.name}</option>
+                  <option key={w.id} value={w.id}>{t("Uang masuk ke: {name}", { name: w.name })}</option>
                 ))}
               </select>
               {p.method === "QR" && curQrs.length > 0 && (
                 <button type="button" className="btn-secondary col-span-2" onClick={() => openQr(i)}>
-                  Tampilkan QR ke pembeli
+                  {t("Tampilkan QR ke pembeli")}
                 </button>
               )}
               {effectivePayments.length > 1 && (
                 <button type="button" className="col-span-2 text-left text-xs text-red-600" onClick={() => setPayments(effectivePayments.filter((_, j) => j !== i))}>
-                  hapus pembayaran ini
+                  {t("hapus pembayaran ini")}
                 </button>
               )}
             </div>
           ))}
-          {paid !== total && cart.length > 0 && <p className="text-xs text-red-700">Pembayaran {formatMoney(paid, currency)} belum sama dengan total.</p>}
+          {paid !== total && cart.length > 0 && <p className="text-xs text-red-700">{t("Pembayaran {paid} belum sama dengan total.", { paid: formatMoney(paid, currency) })}</p>}
         </div>
 
-        <input className="input" placeholder="Catatan (opsional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <input className="input" placeholder={t("Catatan (opsional)")} value={note} onChange={(e) => setNote(e.target.value)} />
         <label className="flex items-center gap-2 text-xs text-neutral-600">
           <input
             type="checkbox"
@@ -402,19 +404,19 @@ export default function KasirForm(props: {
               } catch {}
             }}
           />
-          Langsung buka struk setelah simpan
+          {t("Langsung buka struk setelah simpan")}
         </label>
         <button type="button" className="btn w-full py-3 text-base" disabled={!canSubmit} onClick={submit}>
-          {pending ? "Menyimpan..." : "Simpan penjualan"}
+          {pending ? t("Menyimpan...") : t("Simpan penjualan")}
         </button>
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-700"}`}>
             {result.text}{" "}
             {result.id && (
               <>
-                <Link className="underline" href={`/penjualan/${result.id}/struk`}>cetak struk</Link>
+                <Link className="underline" href={`/penjualan/${result.id}/struk`}>{t("cetak struk")}</Link>
                 {" · "}
-                <Link className="underline" href={`/penjualan/${result.id}`}>lihat nota</Link>
+                <Link className="underline" href={`/penjualan/${result.id}`}>{t("lihat nota")}</Link>
               </>
             )}
           </p>
@@ -441,14 +443,14 @@ export default function KasirForm(props: {
             {qr.note && <div className="text-sm text-neutral-600">{qr.note}</div>}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`/api/qr/${qr.id}`} alt={`QR ${qr.name}`} className="my-3 w-full max-w-md flex-1 object-contain" style={{ maxHeight: "60vh" }} />
-            <div className="text-sm text-neutral-500">Total yang harus dibayar</div>
+            <div className="text-sm text-neutral-500">{t("Total yang harus dibayar")}</div>
             <div className="mb-4 text-4xl font-bold tabular-nums">{formatMoney(amount, currency)}</div>
             <div className="flex w-full max-w-md gap-2">
               <button type="button" className="btn-secondary flex-1 py-3" onClick={() => setQrView(null)}>
-                Tutup
+                {t("Tutup")}
               </button>
               <button type="button" className="btn flex-1 py-3" onClick={() => applyQr(qr, qrView.payIndex)}>
-                Pembayaran QR diterima
+                {t("Pembayaran QR diterima")}
               </button>
             </div>
           </div>
@@ -457,7 +459,7 @@ export default function KasirForm(props: {
 
       {cart.length > 0 && (
         <a href="#nota" className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between bg-neutral-900 px-4 py-3 text-white lg:hidden">
-          <span className="text-sm">{cart.reduce((s, l) => s + l.qty, 0)} barang · lihat nota</span>
+          <span className="text-sm">{t("{n} barang · lihat nota", { n: cart.reduce((s, l) => s + l.qty, 0) })}</span>
           <span className="font-semibold tabular-nums">{formatMoney(total, currency)}</span>
         </a>
       )}

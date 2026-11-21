@@ -4,8 +4,10 @@ import { requireAdmin } from "@/lib/session";
 import { formatMoney } from "@/lib/money";
 import { createProduct } from "../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { getT } from "@/lib/i18n";
 
 export default async function ProdukPage({ searchParams }: { searchParams: SP }) {
+  const t = await getT();
   const sp = await searchParams;
   const me = await requireAdmin();
   const [products, categories] = await Promise.all([
@@ -18,16 +20,16 @@ export default async function ProdukPage({ searchParams }: { searchParams: SP })
   ]);
   return (
     <div>
-      <PageHeader title="Produk" desc="Produk, varian warna/ukuran, dan harga per mata uang." />
+      <PageHeader title={t("Produk|menu")} desc={t("Produk, varian warna/ukuran, dan harga per mata uang.")} />
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
-      <Card title="Tambah produk" className="mb-4">
+      <Card title={t("Tambah produk")} className="mb-4">
         <form action={createProduct} className="grid gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2">
-            <label className="label">Nama produk</label>
-            <input name="name" className="input" required placeholder="mis. Pashmina Ceruty" />
+            <label className="label">{t("Nama produk")}</label>
+            <input name="name" className="input" required placeholder={t("mis. Pashmina Ceruty")} />
           </div>
           <div>
-            <label className="label">Kategori</label>
+            <label className="label">{t("Kategori")}</label>
             <select name="categoryId" className="input" required>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -35,52 +37,52 @@ export default async function ProdukPage({ searchParams }: { searchParams: SP })
             </select>
             {!categories.length && (
               <p className="mt-1 text-xs text-red-700">
-                Belum ada kategori. <Link href="/pengaturan#kategori" className="underline">Tambah di Pengaturan</Link>.
+                {t("Belum ada kategori.")} <Link href="/pengaturan#kategori" className="underline">{t("Tambah di Pengaturan")}</Link>.
               </p>
             )}
           </div>
           <div>
-            <label className="label">Kode SKU dasar</label>
-            <input name="skuBase" className="input" required placeholder="mis. PSC" />
+            <label className="label">{t("Kode SKU dasar")}</label>
+            <input name="skuBase" className="input" required placeholder={t("mis. PSC")} />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Warna (pisahkan dengan koma)</label>
-            <input name="colors" className="input" placeholder="Hitam, Mocca, Dusty Pink" />
+            <label className="label">{t("Warna (pisahkan dengan koma)")}</label>
+            <input name="colors" className="input" placeholder={t("Hitam, Mocca, Dusty Pink")} />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Ukuran (opsional, pisahkan dengan koma)</label>
+            <label className="label">{t("Ukuran (opsional, pisahkan dengan koma)")}</label>
             <input name="sizes" className="input" placeholder="S, M, L" />
           </div>
           <div>
-            <label className="label">Harga IDR</label>
+            <label className="label">{t("Harga IDR")}</label>
             <input name="priceIdr" inputMode="decimal" className="input" required />
           </div>
           <div>
-            <label className="label">Harga MYR (opsional)</label>
+            <label className="label">{t("Harga MYR (opsional)")}</label>
             <input name="priceMyr" inputMode="decimal" className="input" />
           </div>
           <div>
-            <label className="label">Harga SGD (opsional)</label>
+            <label className="label">{t("Harga SGD (opsional)")}</label>
             <input name="priceSgd" inputMode="decimal" className="input" />
           </div>
           <div className="flex items-end">
-            <button className="btn w-full">Tambah</button>
+            <button className="btn w-full">{t("Tambah")}</button>
           </div>
         </form>
-        <p className="mt-2 text-xs text-neutral-500">Satu varian dibuat untuk setiap kombinasi warna dan ukuran. Stok awal diisi lewat menu Stok → Barang masuk.</p>
+        <p className="mt-2 text-xs text-neutral-500">{t("Satu varian dibuat untuk setiap kombinasi warna dan ukuran. Stok awal diisi lewat menu Stok → Barang masuk.")}</p>
       </Card>
       <Card>
         <div className="overflow-x-auto">
           <table className="tbl">
             <thead>
               <tr>
-                <th>Produk</th>
-                <th>Kategori</th>
-                <th>Varian</th>
-                <th className="num">IDR</th>
-                <th className="num">MYR</th>
-                <th className="num">SGD</th>
-                <th className="num">Total stok</th>
+                <th>{t("Produk")}</th>
+                <th>{t("Kategori")}</th>
+                <th>{t("Varian")}</th>
+                <th className="num">{t("IDR")}</th>
+                <th className="num">{t("MYR")}</th>
+                <th className="num">{t("SGD")}</th>
+                <th className="num">{t("Total stok")}</th>
               </tr>
             </thead>
             <tbody>

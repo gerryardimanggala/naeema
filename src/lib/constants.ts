@@ -46,11 +46,21 @@ export const CASH_MOVE_TYPES: Record<string, string> = {
   ADJUST: "Koreksi saldo",
 };
 
+/** Kategori pengeluaran: biaya operasional rutin dan biaya event. Kunci lama tetap dipakai. */
 export const EXPENSE_CATEGORIES: Record<string, string> = {
-  BOOTH: "Sewa booth",
+  SEWA: "Sewa tempat",
+  GAJI: "Gaji & upah",
+  LISTRIK: "Listrik & air",
+  INTERNET: "Internet & pulsa",
+  PACKING: "Packing & pengiriman",
+  IKLAN: "Iklan & promosi",
+  PERLENGKAPAN: "Perlengkapan & ATK",
+  PERBAIKAN: "Perbaikan & perawatan",
+  PAJAK: "Pajak & biaya admin",
   TRANSPORT: "Transport",
-  AKOMODASI: "Akomodasi",
   MAKAN: "Makan",
+  BOOTH: "Sewa booth",
+  AKOMODASI: "Akomodasi",
   LAINNYA: "Lainnya",
 };
 

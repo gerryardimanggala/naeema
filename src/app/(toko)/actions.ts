@@ -8,7 +8,7 @@ import { SESSION_COOKIE, STORE_COOKIE, requireUser, requireAdmin, getCurrentUser
 import { hashPin, verifyPin, newSessionToken, PIN_RULE, MAX_FAILED_LOGINS, LOCK_MINUTES, SESSION_DAYS } from "@/lib/auth";
 import {
   BusinessError, createSale, voidSale, receiveStock, transferStock, adjustStock, returnAllStock,
-  createCashMove, decideCashMove, type SaleInput, type CashMoveInput,
+  createCashMove, decideCashMove, cancelExpense, type SaleInput, type CashMoveInput,
 } from "@/lib/services";
 import { toMinor } from "@/lib/money";
 import { CURRENCIES } from "@/lib/constants";
@@ -17,6 +17,8 @@ import { RECEIPT_KEYS } from "@/lib/receipt";
 import { normalizeSlug, slugProblem } from "@/lib/business";
 import { businessBlockReason, createBusinessWithOwner, getPlatformSettings } from "@/lib/platform";
 import { readLogo } from "@/lib/logo";
+import { getT } from "@/lib/i18n";
+import type { Vars } from "@/lib/i18n-core";
 
 // ---------- helpers ----------
 
@@ -35,7 +37,7 @@ function money(fd: FormData, key: string, currency: string, required = true) {
     return null;
   }
   const v = toMinor(raw, currency);
-  if (!Number.isFinite(v)) throw new BusinessError(`Angka "${raw}" tidak valid.`);
+  if (!Number.isFinite(v)) throw new BusinessError('Angka "{raw}" tidak valid.', { raw });
   return v;
 }
 function back(path: string, params: Record<string, string>) {
@@ -43,17 +45,20 @@ function back(path: string, params: Record<string, string>) {
   return `${path}${path.includes("?") ? "&" : "?"}${q}`;
 }
 
+/** Jalankan aksi, lalu kembali ke halaman dengan pesan sukses atau gagal dalam bahasa pengguna. */
 async function attempt(path: string, okMsg: string, fn: () => Promise<unknown>) {
+  const t = await getT();
   let error: string | null = null;
   try {
     await fn();
   } catch (e) {
-    if (e instanceof BusinessError) error = e.message;
+    if (e instanceof BusinessError) error = t(e.key, e.vars);
     else {
       console.error(e);
-      error = "Terjadi kesalahan. Coba lagi atau hubungi admin.";
+      error = t("Terjadi kesalahan. Coba lagi atau hubungi admin.");
     }
   }
+  okMsg = t(okMsg);
   revalidatePath("/", "layout");
   redirect(back(path, error ? { error } : { ok: okMsg }));
 }
@@ -75,7 +80,7 @@ async function startSession(userId: number) {
 }
 
 function loginError(msg: string, path = "/login"): never {
-  redirect(path + "?error=" + encodeURIComponent(msg));
+  redirect(back(path, { error: msg }));
 }
 
 async function rememberStore(slug: string) {
@@ -90,11 +95,12 @@ async function rememberStore(slug: string) {
 
 /** Langkah pertama masuk: pilih toko lewat kode toko. */
 export async function chooseStore(fd: FormData) {
+  const t = await getT();
   const slug = normalizeSlug(text(fd, "store"));
   const business = slug ? await db.business.findUnique({ where: { slug } }) : null;
-  if (!business) loginError("Kode toko tidak ditemukan. Cek lagi ejaannya, atau daftarkan bisnis baru.");
+  if (!business) loginError(t("Kode toko tidak ditemukan. Cek lagi ejaannya, atau daftarkan bisnis baru."));
   const blocked = businessBlockReason(business);
-  if (blocked) loginError(blocked);
+  if (blocked) loginError(t(blocked));
   await rememberStore(business.slug);
   redirect("/login");
 }
@@ -105,14 +111,21 @@ export async function forgetStore() {
 }
 
 export async function login(fd: FormData) {
+  const t = await getT();
   const id = int(fd, "userId");
   const pin = text(fd, "pin");
   const slug = normalizeSlug(text(fd, "store"));
+  // Tetap di halaman masuk toko yang sama setelah PIN salah.
+  const fail: (m: string) => never = (m) => loginError(m, slug ? `/login?toko=${encodeURIComponent(slug)}` : "/login");
   const user = await db.user.findFirst({ where: { id, active: true, business: { slug, active: true, pending: false } } });
-  if (!user) loginError("Pengguna tidak ditemukan.");
+  if (!user) fail(t("Pengguna tidak ditemukan."));
   if (user.lockedUntil && user.lockedUntil > new Date())
-    loginError(`Terlalu banyak PIN salah. Coba lagi setelah ${user.lockedUntil.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB, atau minta admin mengganti PIN.`);
-  if (!user.pinHash) loginError("Akun ini belum punya PIN. Minta admin mengatur PIN di menu Pengaturan.");
+    fail(
+      t("Terlalu banyak PIN salah. Coba lagi setelah {time} WIB, atau minta admin mengganti PIN.", {
+        time: user.lockedUntil.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }),
+      }),
+    );
+  if (!user.pinHash) fail(t("Akun ini belum punya PIN. Minta admin mengatur PIN di menu Pengaturan."));
   if (!verifyPin(pin, user.pinHash)) {
     const failed = user.failedLogins + 1;
     const lock = failed >= MAX_FAILED_LOGINS;
@@ -120,7 +133,11 @@ export async function login(fd: FormData) {
       where: { id: user.id },
       data: { failedLogins: lock ? 0 : failed, lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60000) : null },
     });
-    loginError(lock ? `PIN salah ${MAX_FAILED_LOGINS} kali. Akun dikunci ${LOCK_MINUTES} menit.` : `PIN salah. Sisa percobaan: ${MAX_FAILED_LOGINS - failed}.`);
+    fail(
+      lock
+        ? t("PIN salah {n} kali. Akun dikunci {min} menit.", { n: MAX_FAILED_LOGINS, min: LOCK_MINUTES })
+        : t("PIN salah. Sisa percobaan: {n}.", { n: MAX_FAILED_LOGINS - failed }),
+    );
   }
   await db.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
   await startSession(user.id);
@@ -137,7 +154,8 @@ export async function logout() {
 
 /** Daftarkan bisnis baru beserta akun owner-nya. */
 export async function registerBusiness(fd: FormData) {
-  const err: (m: string) => never = (m) => loginError(m, "/daftar");
+  const t = await getT();
+  const err: (m: string, vars?: Vars) => never = (m, vars) => loginError(t(m, vars), "/daftar");
   const { mode, code } = await getPlatformSettings();
   if (mode === "CLOSED") err("Pendaftaran toko baru sedang ditutup. Hubungi admin.");
   if (mode === "INVITE" && (!code || text(fd, "signupCode") !== code)) err("Kode undangan salah.");
@@ -147,24 +165,25 @@ export async function registerBusiness(fd: FormData) {
   const pin = text(fd, "pin");
   if (!businessName) err("Nama bisnis wajib diisi.");
   const problem = slugProblem(slug);
-  if (problem) err(problem);
+  if (problem) err(problem, { slug });
   if (!name) err("Nama Anda wajib diisi.");
   if (!PIN_RULE.test(pin)) err("PIN harus 4 sampai 8 angka.");
   if (pin !== text(fd, "pin2")) err("Kedua PIN tidak sama.");
-  if (await db.business.findUnique({ where: { slug } })) err(`Kode toko "${slug}" sudah dipakai. Pilih kode lain.`);
+  if (await db.business.findUnique({ where: { slug } })) err('Kode toko "{slug}" sudah dipakai. Pilih kode lain.', { slug });
 
   let logo;
   try {
     logo = await readLogo(fd, true);
   } catch (e) {
-    err(e instanceof Error ? e.message : "Logo tidak valid.");
+    if (e instanceof BusinessError) err(e.key, e.vars);
+    err("Logo tidak valid.");
   }
 
   const pending = mode === "APPROVAL";
   let owner;
   try {
     ({ owner } = await db.$transaction((tx) =>
-      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending, logo }),
+      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending, logo, t }),
     ));
   } catch (e) {
     console.error(e);
@@ -175,13 +194,13 @@ export async function registerBusiness(fd: FormData) {
   if (pending) {
     redirect(
       "/daftar?ok=" +
-        encodeURIComponent(`Pendaftaran "${businessName}" diterima dengan kode toko ${slug}. Anda bisa masuk setelah disetujui admin.`),
+        encodeURIComponent(t('Pendaftaran "{name}" diterima dengan kode toko {slug}. Anda bisa masuk setelah disetujui admin.', { name: businessName, slug })),
     );
   }
   await startSession(owner.id);
   redirect(
     "/pengaturan?ok=" +
-      encodeURIComponent(`Bisnis terdaftar. Kode toko Anda: ${slug}. Lanjutkan dengan mengisi kategori, kurs, tim, dan dompet.`),
+      encodeURIComponent(t("Bisnis terdaftar. Kode toko Anda: {slug}. Lanjutkan dengan mengisi kategori, kurs, tim, dan dompet.", { slug })),
   );
 }
 
@@ -215,14 +234,15 @@ export async function resetPin(fd: FormData) {
 
 export async function saveSale(input: SaleInput): Promise<{ ok: true; id: number; number: string } | { ok: false; error: string }> {
   const user = await requireUser();
+  const t = await getT();
   try {
     const sale = await createSale(db, user, input);
     revalidatePath("/", "layout");
     return { ok: true, id: sale.id, number: sale.number };
   } catch (e) {
-    if (e instanceof BusinessError) return { ok: false, error: e.message };
+    if (e instanceof BusinessError) return { ok: false, error: t(e.key, e.vars) };
     console.error(e);
-    return { ok: false, error: "Gagal menyimpan penjualan. Coba lagi." };
+    return { ok: false, error: t("Gagal menyimpan penjualan. Coba lagi.") };
   }
 }
 
@@ -259,7 +279,7 @@ export async function createProduct(fd: FormData) {
       for (const [color, size] of combos) {
         const sku = [base, color.toUpperCase().replace(/\s+/g, "").slice(0, 4), size.toUpperCase().replace(/\s+/g, "")].filter(Boolean).join("-");
         if (await tx.variant.findUnique({ where: { businessId_sku: { businessId: bid, sku } } }))
-          throw new BusinessError(`SKU ${sku} sudah dipakai.`);
+          throw new BusinessError("SKU {sku} sudah dipakai.", { sku });
         await tx.variant.create({
           data: {
             businessId: bid,
@@ -288,7 +308,7 @@ export async function saveVariant(fd: FormData) {
     const sku = text(fd, "sku").toUpperCase();
     if (!sku) throw new BusinessError("SKU wajib diisi.");
     const dup = await db.variant.findUnique({ where: { businessId_sku: { businessId: bid, sku } } });
-    if (dup && dup.id !== id) throw new BusinessError(`SKU ${sku} sudah dipakai.`);
+    if (dup && dup.id !== id) throw new BusinessError("SKU {sku} sudah dipakai.", { sku });
     const data = {
       sku,
       color: text(fd, "color") || null,
@@ -437,10 +457,44 @@ export async function decideCashMoveAction(fd: FormData) {
   await attempt("/kas", approve ? "Setoran dikonfirmasi." : "Setoran ditolak.", () => decideCashMove(db, user, int(fd, "id"), approve));
 }
 
+// ---------- pengeluaran operasional ----------
+
+function expensePath(fd: FormData) {
+  const month = text(fd, "bulan");
+  return /^\d{4}-\d{2}$/.test(month) ? `/pengeluaran?bulan=${month}` : "/pengeluaran";
+}
+
+export async function expenseAction(fd: FormData) {
+  const user = await requireUser();
+  await attempt(expensePath(fd), "Pengeluaran tercatat.", async () => {
+    const fromWalletId = int(fd, "fromWalletId");
+    const from = fromWalletId ? await db.wallet.findFirst({ where: { id: fromWalletId, businessId: user.businessId } }) : null;
+    if (!from) throw new BusinessError("Pilih dompet.");
+    if (!text(fd, "note")) throw new BusinessError("Keterangan wajib diisi.");
+    await createCashMove(db, user, {
+      type: "EXPENSE",
+      fromWalletId,
+      toWalletId: null,
+      amount: money(fd, "amount", from.currency)!,
+      toAmount: null,
+      eventId: int(fd, "eventId") || null,
+      category: text(fd, "category") || "LAINNYA",
+      note: text(fd, "note"),
+      date: text(fd, "date") ? formDate(text(fd, "date")) : undefined,
+    });
+  });
+}
+
+export async function cancelExpenseAction(fd: FormData) {
+  const user = await requireUser();
+  await attempt(expensePath(fd), "Pengeluaran dibatalkan.", () => cancelExpense(db, user, int(fd, "id")));
+}
+
 // ---------- pengaturan ----------
 
 export async function createUser(fd: FormData) {
   const me = await requireAdmin();
+  const t = await getT();
   await attempt("/pengaturan", "Pengguna ditambahkan.", async () => {
     const name = text(fd, "name");
     const role = text(fd, "role");
@@ -454,7 +508,7 @@ export async function createUser(fd: FormData) {
     const curs = CURRENCIES.filter((c) => fd.get(`wallet_${c}`) === "on");
     for (const c of curs)
       await db.wallet.create({
-        data: { businessId: bid, name: `Kas ${name}${curs.length > 1 ? ` (${c})` : ""}`, kind: "PERSON", ownerId: u.id, currency: c },
+        data: { businessId: bid, name: t("Kas {name}", { name }) + (curs.length > 1 ? ` (${c})` : ""), kind: "PERSON", ownerId: u.id, currency: c },
       });
   });
 }
@@ -608,7 +662,7 @@ export async function saveCategory(fd: FormData) {
     const name = text(fd, "name").slice(0, 60);
     if (!name) throw new BusinessError("Nama kategori wajib diisi.");
     const dup = await db.category.findUnique({ where: { businessId_name: { businessId: me.businessId, name } } });
-    if (dup && dup.id !== id) throw new BusinessError(`Kategori "${name}" sudah ada.`);
+    if (dup && dup.id !== id) throw new BusinessError('Kategori "{name}" sudah ada.', { name });
     if (id) {
       const { count } = await db.category.updateMany({
         where: { id, businessId: me.businessId },
