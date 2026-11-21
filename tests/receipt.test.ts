@@ -51,3 +51,24 @@ test("ESC/POS diawali reset dan diakhiri potong kertas", () => {
   assert.deepEqual([...bytes.slice(-4)], [0x1d, 0x56, 0x42, 0x00]);
   assert.ok(new TextDecoder().decode(bytes).includes("HALO\n"));
 });
+
+test("logo struk: raster hitam-putih dan perintah GS v 0", async () => {
+  const { rgbaToRaster, receiptToEscPos } = await import("../src/lib/escpos");
+  // 16x2: kiri hitam pekat, kanan putih; baris kedua transparan (dianggap putih).
+  const w = 16, h = 2;
+  const rgba = new Uint8Array(w * h * 4);
+  for (let x = 0; x < w; x++) {
+    const v = x < 8 ? 0 : 255;
+    rgba.set([v, v, v, 255], x * 4);
+    rgba.set([0, 0, 0, 0], (w + x) * 4);
+  }
+  const r = rgbaToRaster(rgba, w, h);
+  assert.deepEqual([...r.data], [0xff, 0x00, 0x00, 0x00]);
+  const bytes = receiptToEscPos([{ text: "HALO" }], r);
+  const i = bytes.findIndex((b, k) => b === 0x1d && bytes[k + 1] === 0x76 && bytes[k + 2] === 0x30);
+  assert.ok(i > 0, "ada perintah raster");
+  assert.deepEqual([...bytes.slice(i + 4, i + 8)], [2, 0, 2, 0]); // 2 byte per baris, 2 baris
+  // tanpa logo tidak ada perintah raster
+  const plain = receiptToEscPos([{ text: "HALO" }]);
+  assert.equal(plain.findIndex((b, k) => b === 0x1d && plain[k + 1] === 0x76), -1);
+});

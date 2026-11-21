@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/session";
 import { registerBusiness } from "../actions";
 import { Flash, str, type SP } from "@/components/ui";
 import { getPlatformSettings } from "@/lib/platform";
+import { LOGO_ACCEPT } from "@/lib/logo";
+import { MgPosLogo } from "@/components/brand";
 
 export const metadata = { title: "Daftar bisnis baru" };
 
@@ -17,8 +19,9 @@ export default async function DaftarPage({ searchParams }: { searchParams: SP })
   const ok = str(sp.ok);
   return (
     <div className="mx-auto mt-12 max-w-sm">
-      <div className="mb-6 text-center">
-        <div className="text-3xl font-black tracking-tight">Daftar bisnis baru</div>
+      <div className="mb-6 flex flex-col items-center text-center">
+        <MgPosLogo size={48} className="mb-3" />
+        <div className="text-3xl font-black tracking-tight">Daftar toko di MG-POS</div>
         <div className="mt-1 text-sm text-neutral-500">Data setiap bisnis terpisah dan hanya bisa dilihat timnya sendiri.</div>
       </div>
       <Flash ok={ok} error={str(sp.error)} />
@@ -39,6 +42,11 @@ export default async function DaftarPage({ searchParams }: { searchParams: SP })
           <label className="label" htmlFor="store">Kode toko</label>
           <input id="store" name="store" className="input" required minLength={3} maxLength={30} autoCapitalize="none" pattern="[a-zA-Z0-9\-]+" placeholder="mis. toko-ani" />
           <p className="mt-1 text-xs text-neutral-500">Dipakai tim Anda saat masuk. Huruf kecil, angka, dan tanda minus. Tidak bisa diganti nanti.</p>
+        </div>
+        <div>
+          <label className="label" htmlFor="logo">Logo toko</label>
+          <input id="logo" name="logo" type="file" accept={LOGO_ACCEPT} className="input" required />
+          <p className="mt-1 text-xs text-neutral-500">PNG, JPG, atau WEBP, maks. 512 KB. Tampil di halaman masuk dan di struk. Logo persegi dengan latar putih paling bagus untuk struk.</p>
         </div>
         <hr className="border-neutral-200" />
         <div>

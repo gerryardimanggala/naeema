@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { requirePlatformAdmin } from "@/lib/session";
+import { requirePlatformAdmin } from "@/lib/admin-session";
 import { SIGNUP_MODES, getPlatformSettings } from "@/lib/platform";
 import { fmtDate } from "@/lib/time";
 import { Card, Flash, PageHeader, Stat, str, type SP } from "@/components/ui";
+import { StoreLogo } from "@/components/brand";
+import { LOGO_ACCEPT } from "@/lib/logo";
 import { adminCreateBusiness, approveBusiness, rejectBusiness, saveSignupSettings } from "./actions";
 
-export const metadata = { title: "Admin platform" };
+export const metadata = { title: "Toko" };
 
 const pinProps = { type: "password", inputMode: "numeric", pattern: "[0-9]{4,8}", minLength: 4, maxLength: 8, autoComplete: "off", className: "input" } as const;
 
@@ -25,6 +27,7 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
     db.business.findMany({
       where: q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { slug: { contains: q.toLowerCase() } }] } : {},
       include: { _count: { select: { users: true } } },
+      omit: { logo: true },
       orderBy: [{ pending: "desc" }, { createdAt: "desc" }],
     }),
     db.user.findMany({ where: { role: "OWNER" }, select: { businessId: true, name: true }, orderBy: { id: "asc" } }),
@@ -41,7 +44,7 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
 
   return (
     <div>
-      <PageHeader title="Admin platform" desc="Mengatur pendaftaran toko dan akun di semua toko." />
+      <PageHeader title="Toko" desc="Mengatur pendaftaran toko dan akun di semua toko MG-POS." />
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
 
       <div className="mb-4 grid grid-cols-3 gap-3">
@@ -112,6 +115,10 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
               <input name="pin" required {...pinProps} />
             </div>
             <div className="sm:col-span-2">
+              <label className="label">Logo toko (PNG/JPG/WEBP, maks. 512 KB)</label>
+              <input name="logo" type="file" accept={LOGO_ACCEPT} className="input" />
+            </div>
+            <div className="sm:col-span-2">
               <button className="btn">Buat toko</button>
             </div>
           </form>
@@ -142,7 +149,8 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
               {businesses.map((b) => (
                 <tr key={b.id}>
                   <td>
-                    <Link href={`/admin/toko/${b.id}`} className="font-medium underline">
+                    <Link href={`/admin/toko/${b.id}`} className="flex items-center gap-2 font-medium underline">
+                      <StoreLogo business={b} size={24} />
                       {b.name}
                     </Link>
                   </td>

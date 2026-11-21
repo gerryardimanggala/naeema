@@ -1,9 +1,14 @@
 {
-  "name": "Kasir POS",
-  "short_name": "Kasir",
+  "name": "MG-POS",
+  "short_name": "MG-POS",
+  "description": "Kasir, stok, dan kas untuk toko",
   "start_url": "/kasir",
   "display": "standalone",
   "background_color": "#f6f5f3",
   "theme_color": "#111111",
-  "icons": []
+  "icons": [
+    { "src": "/brand/mg-pos-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/mg-pos-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand/mg-pos-icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
 }

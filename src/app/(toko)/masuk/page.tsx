@@ -8,6 +8,7 @@ import { ROLES } from "@/lib/constants";
 import { normalizeSlug } from "@/lib/business";
 import { businessBlockReason } from "@/lib/platform";
 import { Flash, str, type SP } from "@/components/ui";
+import { MgPosLogo, StoreLogo } from "@/components/brand";
 
 const pinProps = { type: "password", inputMode: "numeric", pattern: "[0-9]{4,8}", minLength: 4, maxLength: 8, autoComplete: "off", className: "input text-center text-lg tracking-[0.5em]" } as const;
 
@@ -16,16 +17,28 @@ export default async function MasukPage({ searchParams }: { searchParams: SP }) 
   if (await getCurrentUser()) redirect("/");
   // ?toko=kode bisa dipakai sebagai tautan langsung ke halaman masuk sebuah toko.
   const slug = normalizeSlug(str(sp.toko) || (await cookies()).get(STORE_COOKIE)?.value || "");
-  const business = slug ? await db.business.findUnique({ where: { slug } }) : null;
+  const business = slug ? await db.business.findUnique({ where: { slug }, omit: { logo: true } }) : null;
   const blocked = business ? businessBlockReason(business) : null;
   const users = business && !blocked
     ? await db.user.findMany({ where: { businessId: business.id, active: true }, orderBy: { name: "asc" } })
     : [];
   return (
     <div className="mx-auto mt-16 max-w-sm">
-      <div className="mb-8 text-center">
-        <div className="text-4xl font-black tracking-tight">{business?.name ?? "Kasir"}</div>
-        <div className="mt-1 text-xs tracking-[0.4em] text-neutral-500">POS · STOK · KAS</div>
+      <div className="mb-8 flex flex-col items-center gap-3 text-center">
+        {business ? (
+          <>
+            <StoreLogo business={business} size={96} />
+            <div className="text-3xl font-black tracking-tight">{business.name}</div>
+          </>
+        ) : (
+          <>
+            <MgPosLogo size={72} />
+            <div>
+              <div className="text-4xl font-black tracking-tight">MG-POS</div>
+              <div className="mt-1 text-xs tracking-[0.4em] text-neutral-500">POS · STOK · KAS</div>
+            </div>
+          </>
+        )}
       </div>
       <Flash error={str(sp.error)} />
       {!business ? (
@@ -33,7 +46,7 @@ export default async function MasukPage({ searchParams }: { searchParams: SP }) 
           <form action={chooseStore} className="card space-y-3">
             <div>
               <label className="label" htmlFor="store">Kode toko</label>
-              <input id="store" name="store" className="input" required autoFocus autoCapitalize="none" placeholder="mis. naeema" defaultValue={slug} />
+              <input id="store" name="store" className="input" required autoFocus autoCapitalize="none" placeholder="mis. toko-ani" defaultValue={slug} />
               <p className="mt-1 text-xs text-neutral-500">Tanyakan kode toko ke owner bisnis Anda. Perangkat ini akan mengingatnya.</p>
             </div>
             <button className="btn w-full">Lanjut</button>
