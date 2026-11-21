@@ -1,7 +1,9 @@
 // Pengaturan tingkat platform (di atas semua toko) dan pembuatan bisnis baru.
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { cache } from "react";
 import { makeT, type T } from "./i18n-core";
+import { SUB_KEYS, parseSubSettings, subscriptionState } from "./subscription";
 
 export const SIGNUP_MODES = {
   OPEN: "Terbuka: siapa saja bisa daftar dan langsung pakai",
@@ -20,6 +22,17 @@ export async function getPlatformSettings() {
   return { mode, code: get("signup.code") || process.env.SIGNUP_CODE || "" };
 }
 
+/** Harga, masa coba, masa tenggang, dan cara bayar langganan (diatur admin MG-POS). */
+export const getSubSettings = cache(async () => {
+  const rows = await db.platformSetting.findMany({ where: { key: { in: Object.values(SUB_KEYS) } } });
+  return parseSubSettings((k) => rows.find((r) => r.key === k)?.value);
+});
+
+/** Status langganan sebuah toko berdasarkan pengaturan saat ini. */
+export async function businessSubscription(b: { freePlan: boolean; paidUntil: Date | null }) {
+  return subscriptionState(b, (await getSubSettings()).graceDays);
+}
+
 export async function setPlatformSetting(key: string, value: string) {
   await db.platformSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
 }
@@ -36,6 +49,8 @@ export async function createBusinessWithOwner(
     logo?: { bytes: Uint8Array<ArrayBuffer>; mime: string } | null;
     /** Bahasa untuk nama lokasi, dompet, dan kategori awal. */
     t?: T;
+    /** Akhir masa coba gratis. */
+    paidUntil?: Date;
   },
 ) {
   const t = input.t ?? makeT("id");
@@ -44,6 +59,7 @@ export async function createBusinessWithOwner(
       name: input.businessName,
       slug: input.slug,
       pending: !!input.pending,
+      paidUntil: input.paidUntil ?? null,
       ...(input.logo ? { logo: input.logo.bytes, logoMime: input.logo.mime, logoAt: new Date() } : {}),
     },
   });

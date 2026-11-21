@@ -3,9 +3,8 @@
 // Teks yang belum ada di kamus tetap tampil dalam bahasa Indonesia.
 import { EN } from "./i18n-en";
 
-export type Lang = "id" | "en";
-export const LANGS: Lang[] = ["id", "en"];
-export const LANG_COOKIE = "mgpos_lang";
+import type { Lang } from "./i18n-lang";
+export { LANG_COOKIE, LANGS, langFromAcceptLanguage, type Lang } from "./i18n-lang";
 export type Vars = Record<string, string | number>;
 export type T = (text: string | null | undefined, vars?: Vars) => string;
 
@@ -24,12 +23,6 @@ export function makeT(lang: Lang): T {
     const base = text.split("|")[0];
     return interpolate(lang === "en" ? (EN[text] ?? EN[base] ?? base) : base, vars);
   };
-}
-
-/** Pilih bahasa dari header Accept-Language: Indonesia kalau browser memakai bahasa Indonesia, selain itu Inggris. */
-export function langFromAcceptLanguage(header: string | null): Lang {
-  if (!header) return "id";
-  return /(^|,)\s*id\b/i.test(header) ? "id" : "en";
 }
 
 export function locale(lang: Lang) {
