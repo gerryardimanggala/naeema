@@ -30,6 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               ["/pengaturan", "Pengaturan"],
             ]
           : []),
+        ...(user.platformAdmin ? [["/admin", "Admin"]] : []),
       ]
     : [];
   return (

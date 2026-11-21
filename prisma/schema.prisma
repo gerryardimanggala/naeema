@@ -23,6 +23,7 @@ model User {
   pinHash            String?
   failedLogins       Int         @default(0)
   lockedUntil        DateTime?
+  platformAdmin      Boolean     @default(false) // admin platform: mengatur semua toko
   sessions           Session[]
   wallets            Wallet[]
   sales              Sale[]
@@ -298,7 +299,8 @@ model Business {
   id         Int            @id @default(autoincrement())
   name       String
   slug       String         @unique // kode toko untuk login
-  active     Boolean        @default(true)
+  active     Boolean        @default(true) // false = dinonaktifkan admin platform
+  pending    Boolean        @default(false) // true = pendaftaran menunggu persetujuan admin platform
   createdAt  DateTime       @default(now())
   users      User[]
   products   Product[]
@@ -324,4 +326,11 @@ model Category {
   products   Product[]
 
   @@unique([businessId, name])
+}
+
+/// Pengaturan tingkat platform (di atas semua toko), mis. mode pendaftaran.
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

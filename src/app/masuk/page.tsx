@@ -6,6 +6,7 @@ import { STORE_COOKIE, getCurrentUser } from "@/lib/session";
 import { chooseStore, forgetStore, login } from "../actions";
 import { ROLES } from "@/lib/constants";
 import { normalizeSlug } from "@/lib/business";
+import { businessBlockReason } from "@/lib/platform";
 import { Flash, str, type SP } from "@/components/ui";
 
 const pinProps = { type: "password", inputMode: "numeric", pattern: "[0-9]{4,8}", minLength: 4, maxLength: 8, autoComplete: "off", className: "input text-center text-lg tracking-[0.5em]" } as const;
@@ -15,8 +16,9 @@ export default async function MasukPage({ searchParams }: { searchParams: SP }) 
   if (await getCurrentUser()) redirect("/");
   // ?toko=kode bisa dipakai sebagai tautan langsung ke halaman masuk sebuah toko.
   const slug = normalizeSlug(str(sp.toko) || (await cookies()).get(STORE_COOKIE)?.value || "");
-  const business = slug ? await db.business.findFirst({ where: { slug, active: true } }) : null;
-  const users = business
+  const business = slug ? await db.business.findUnique({ where: { slug } }) : null;
+  const blocked = business ? businessBlockReason(business) : null;
+  const users = business && !blocked
     ? await db.user.findMany({ where: { businessId: business.id, active: true }, orderBy: { name: "asc" } })
     : [];
   return (
@@ -47,7 +49,9 @@ export default async function MasukPage({ searchParams }: { searchParams: SP }) 
         <>
           <form action={login} className="card space-y-3">
             <input type="hidden" name="store" value={business.slug} />
-            {users.length ? (
+            {blocked ? (
+              <p className="text-sm text-neutral-600">{blocked}</p>
+            ) : users.length ? (
               <>
                 <div>
                   <label className="label" htmlFor="userId">Nama</label>
