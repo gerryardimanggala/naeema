@@ -9,17 +9,18 @@ import { fmtDateTime } from "@/lib/time";
 export default async function StokPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const user = await requireUser();
+  const bid = user.businessId;
   const admin = isAdmin(user);
   const tab = str(sp.tab) || "ringkas";
   const recent = new Date();
   recent.setDate(recent.getDate() - 30);
   const [locations, variants] = await Promise.all([
     db.location.findMany({
-      where: { active: true, OR: [{ type: { not: "EVENT" } }, { event: { endDate: { gte: recent } } }, { stocks: { some: { qty: { not: 0 } } } }] },
+      where: { businessId: bid, active: true, OR: [{ type: { not: "EVENT" } }, { event: { endDate: { gte: recent } } }, { stocks: { some: { qty: { not: 0 } } } }] },
       include: { event: true },
       orderBy: { id: "asc" },
     }),
-    db.variant.findMany({ where: { active: true }, include: { product: true, stocks: true }, orderBy: [{ product: { name: "asc" } }, { sku: "asc" }] }),
+    db.variant.findMany({ where: { businessId: bid, active: true }, include: { product: true, stocks: true }, orderBy: [{ product: { name: "asc" } }, { sku: "asc" }] }),
   ]);
   const tabs: [string, string][] = [
     ["ringkas", "Stok per lokasi"],
@@ -59,7 +60,7 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
   );
 
   let moves: Awaited<ReturnType<typeof loadMoves>> = [];
-  if (tab === "riwayat") moves = await loadMoves();
+  if (tab === "riwayat") moves = await loadMoves(bid);
 
   return (
     <div>
@@ -268,8 +269,9 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-function loadMoves() {
+function loadMoves(businessId: number) {
   return db.stockMove.findMany({
+    where: { businessId },
     include: { variant: true, fromLocation: true, toLocation: true, user: true, sale: true },
     orderBy: { createdAt: "desc" },
     take: 200,

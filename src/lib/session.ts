@@ -4,13 +4,15 @@ import { cache } from "react";
 import { db } from "./db";
 
 export const SESSION_COOKIE = "naeema_session";
+/** Kode toko terakhir yang dipakai di perangkat ini, supaya halaman masuk langsung menampilkan tokonya. */
+export const STORE_COOKIE = "pos_store";
 
 export const getCurrentUser = cache(async () => {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const session = await db.session.findUnique({ where: { token }, include: { user: true } });
-  if (!session || session.expiresAt < new Date() || !session.user.active) return null;
+  const session = await db.session.findUnique({ where: { token }, include: { user: { include: { business: true } } } });
+  if (!session || session.expiresAt < new Date() || !session.user.active || !session.user.business.active) return null;
   return session.user;
 });
 

@@ -13,7 +13,7 @@ export type ReceiptSettings = {
 };
 
 export const DEFAULT_RECEIPT: ReceiptSettings = {
-  storeName: "NAEEMA HIJAB",
+  storeName: "",
   address: "",
   phone: "",
   footer: "Terima kasih telah berbelanja",
@@ -88,7 +88,7 @@ export function buildReceipt(sale: ReceiptSale, s: ReceiptSettings): ReceiptLine
   const rule = { text: "-".repeat(cols) };
   const lines: ReceiptLine[] = [];
 
-  lines.push(...wrap(s.storeName || "NAEEMA", cols).map((text) => ({ text, bold: true, center: true, big: true })));
+  lines.push(...wrap(s.storeName || "TOKO", cols).map((text) => ({ text, bold: true, center: true, big: true })));
   for (const t of [s.address, s.phone]) if (t) lines.push(...wrap(t, cols).map((text) => ({ text, center: true })));
   lines.push(rule);
 

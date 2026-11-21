@@ -3,23 +3,23 @@ import { walletBalances } from "./services";
 import { toIdr } from "./money";
 import { endOfDay, jakartaDay, startOfDay } from "./time";
 
-export async function latestRates() {
-  const rates = await db.exchangeRate.findMany({ orderBy: { date: "desc" } });
+export async function latestRates(businessId: number) {
+  const rates = await db.exchangeRate.findMany({ where: { businessId }, orderBy: { date: "desc" } });
   const map: Record<string, number> = { IDR: 1 };
   for (const r of rates) if (!(r.currency in map)) map[r.currency] = r.idrPerUnit;
   return map;
 }
 
 /** Posisi uang per dompet, dikelompokkan per pemegang. */
-export async function cashPosition(opts: { ownerId?: number } = {}) {
+export async function cashPosition(businessId: number, opts: { ownerId?: number } = {}) {
   const [wallets, balances, rates] = await Promise.all([
     db.wallet.findMany({
-      where: opts.ownerId ? { ownerId: opts.ownerId } : {},
+      where: { businessId, ...(opts.ownerId ? { ownerId: opts.ownerId } : {}) },
       include: { owner: true },
       orderBy: [{ kind: "asc" }, { name: "asc" }],
     }),
-    walletBalances(db),
-    latestRates(),
+    walletBalances(db, businessId),
+    latestRates(businessId),
   ]);
   const rows = wallets.map((w) => {
     const b = balances.get(w.id) ?? { received: 0, moneyIn: 0, moneyOut: 0, pendingOut: 0, balance: 0, walletId: w.id };

@@ -6,8 +6,8 @@ import { logout } from "./actions";
 import { ROLES } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Naeema POS",
-  description: "Kasir, stok, dan kas Naeema",
+  title: "Kasir POS",
+  description: "Kasir, stok, dan kas untuk toko Anda",
   manifest: "/manifest.webmanifest",
 };
 
@@ -38,8 +38,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {user && (
           <header className="print:hidden sticky top-0 z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-2">
-              <Link href="/" className="text-lg font-black tracking-tight">
-                Naeema
+              <Link href="/" className="max-w-[10rem] truncate text-lg font-black tracking-tight">
+                {user.business.name}
               </Link>
               <nav className="flex flex-1 gap-1 overflow-x-auto text-sm">
                 {links.map(([href, label]) => (

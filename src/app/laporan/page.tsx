@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { dayRange, isoDate, cashPosition } from "@/lib/reports";
 import { formatMoney, fromMinor } from "@/lib/money";
 import { fmtDate } from "@/lib/time";
-import { CATEGORIES, CHANNELS, EXPENSE_CATEGORIES, MARKETPLACES } from "@/lib/constants";
+import { CHANNELS, EXPENSE_CATEGORIES, MARKETPLACES } from "@/lib/constants";
 import { Card, PageHeader, str, type SP } from "@/components/ui";
 
 function Bars({ rows }: { rows: { label: string; value: number; sub?: string }[] }) {
@@ -29,23 +29,24 @@ function Bars({ rows }: { rows: { label: string; value: number; sub?: string }[]
 }
 
 export default async function LaporanPage({ searchParams }: { searchParams: SP }) {
-  await requireAdmin();
+  const me = await requireAdmin();
+  const bid = me.businessId;
   const sp = await searchParams;
   const { start, end } = dayRange(str(sp.from), str(sp.to));
-  const where = { status: "PAID", date: { gte: start, lte: end } };
+  const where = { businessId: bid, status: "PAID", date: { gte: start, lte: end } };
   const [byChannel, byMarketplace, byEvent, byCurrency, byCashier, items, expenses, events, users, wallets, position, cashMoves, payments] = await Promise.all([
     db.sale.groupBy({ by: ["channel"], _sum: { totalIdr: true }, _count: true, where }),
     db.sale.groupBy({ by: ["marketplace"], _sum: { totalIdr: true }, _count: true, where: { ...where, channel: "MARKETPLACE" } }),
     db.sale.groupBy({ by: ["eventId"], _sum: { totalIdr: true }, _count: true, where: { ...where, channel: "EVENT" } }),
     db.sale.groupBy({ by: ["currency"], _sum: { total: true, totalIdr: true }, where }),
     db.sale.groupBy({ by: ["cashierId"], _sum: { totalIdr: true }, _count: true, where }),
-    db.saleItem.findMany({ where: { sale: where }, include: { variant: { include: { product: true } }, sale: true } }),
-    db.cashMove.findMany({ where: { type: "EXPENSE", status: "CONFIRMED", date: { gte: start, lte: end } }, include: { fromWallet: true } }),
-    db.event.findMany(),
-    db.user.findMany(),
-    db.wallet.findMany({ where: { kind: "PERSON" }, include: { owner: true } }),
-    cashPosition(),
-    db.cashMove.findMany({ where: { status: "CONFIRMED", date: { gte: start, lte: end } } }),
+    db.saleItem.findMany({ where: { sale: where }, include: { variant: { include: { product: { include: { category: true } } } }, sale: true } }),
+    db.cashMove.findMany({ where: { businessId: bid, type: "EXPENSE", status: "CONFIRMED", date: { gte: start, lte: end } }, include: { fromWallet: true } }),
+    db.event.findMany({ where: { businessId: bid } }),
+    db.user.findMany({ where: { businessId: bid } }),
+    db.wallet.findMany({ where: { businessId: bid, kind: "PERSON" }, include: { owner: true } }),
+    cashPosition(bid),
+    db.cashMove.findMany({ where: { businessId: bid, status: "CONFIRMED", date: { gte: start, lte: end } } }),
     db.payment.findMany({ where: { sale: where } }),
   ]);
   const total = byChannel.reduce((s, c) => s + (c._sum.totalIdr ?? 0), 0);
@@ -53,7 +54,7 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
   const productMap = new Map<string, { label: string; category: string; qty: number; idr: number }>();
   for (const i of items) {
     const key = i.variant.product.name;
-    const p = productMap.get(key) ?? { label: key, category: i.variant.product.category, qty: 0, idr: 0 };
+    const p = productMap.get(key) ?? { label: key, category: i.variant.product.category.name, qty: 0, idr: 0 };
     p.qty += i.qty;
     p.idr += Math.round(fromMinor(i.qty * i.price, i.sale.currency) * (i.sale.total / Math.max(1, i.sale.subtotal)) * i.sale.rateToIdr);
     productMap.set(key, p);
@@ -122,7 +123,7 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
           </table>
         </Card>
         <Card title="Per kategori produk">
-          <Bars rows={[...categoryMap.entries()].map(([k, v]) => ({ label: CATEGORIES[k], value: v }))} />
+          <Bars rows={[...categoryMap.entries()].map(([k, v]) => ({ label: k, value: v }))} />
         </Card>
         <Card title="Per kasir">
           <Bars rows={byCashier.map((c) => ({ label: users.find((u) => u.id === c.cashierId)?.name ?? "-", value: c._sum.totalIdr ?? 0, sub: `${c._count} nota` }))} />

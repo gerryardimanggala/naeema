@@ -10,12 +10,12 @@ export default async function StrukPage({ params, searchParams }: { params: Prom
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireUser();
-  const sale = await db.sale.findUnique({
-    where: { id: Number(id) },
+  const sale = await db.sale.findFirst({
+    where: { id: Number(id) || 0, businessId: user.businessId },
     include: { items: { include: { variant: { include: { product: true } } } }, payments: true, event: true, cashier: true },
   });
   if (!sale || (!isAdmin(user) && sale.cashierId !== user.id)) notFound();
-  const settings = await getReceiptSettings();
+  const settings = await getReceiptSettings(user.businessId);
   const lines = buildReceipt(sale, settings);
   const cols = receiptColumns(settings.paperWidth);
   return (

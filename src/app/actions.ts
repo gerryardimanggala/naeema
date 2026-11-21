@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { SESSION_COOKIE, requireUser, requireAdmin, getCurrentUser } from "@/lib/session";
+import { SESSION_COOKIE, STORE_COOKIE, requireUser, requireAdmin, getCurrentUser } from "@/lib/session";
 import { hashPin, verifyPin, newSessionToken, PIN_RULE, MAX_FAILED_LOGINS, LOCK_MINUTES, SESSION_DAYS } from "@/lib/auth";
 import {
   BusinessError, createSale, voidSale, receiveStock, transferStock, adjustStock, returnAllStock,
@@ -14,6 +14,7 @@ import { toMinor } from "@/lib/money";
 import { CURRENCIES } from "@/lib/constants";
 import { formDate, startOfDay } from "@/lib/time";
 import { RECEIPT_KEYS } from "@/lib/receipt";
+import { normalizeSlug, slugProblem } from "@/lib/business";
 
 // ---------- helpers ----------
 
@@ -71,14 +72,39 @@ async function startSession(userId: number) {
   });
 }
 
-function loginError(msg: string): never {
-  redirect("/masuk?error=" + encodeURIComponent(msg));
+function loginError(msg: string, path = "/masuk"): never {
+  redirect(path + "?error=" + encodeURIComponent(msg));
+}
+
+async function rememberStore(slug: string) {
+  (await cookies()).set(STORE_COOKIE, slug, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 365 * 864e2,
+    path: "/",
+  });
+}
+
+/** Langkah pertama masuk: pilih toko lewat kode toko. */
+export async function chooseStore(fd: FormData) {
+  const slug = normalizeSlug(text(fd, "store"));
+  const business = slug ? await db.business.findFirst({ where: { slug, active: true } }) : null;
+  if (!business) loginError("Kode toko tidak ditemukan. Cek lagi ejaannya, atau daftarkan bisnis baru.");
+  await rememberStore(business.slug);
+  redirect("/masuk");
+}
+
+export async function forgetStore() {
+  (await cookies()).delete(STORE_COOKIE);
+  redirect("/masuk");
 }
 
 export async function login(fd: FormData) {
   const id = int(fd, "userId");
   const pin = text(fd, "pin");
-  const user = await db.user.findFirst({ where: { id, active: true } });
+  const slug = normalizeSlug(text(fd, "store"));
+  const user = await db.user.findFirst({ where: { id, active: true, business: { slug, active: true } } });
   if (!user) loginError("Pengguna tidak ditemukan.");
   if (user.lockedUntil && user.lockedUntil > new Date())
     loginError(`Terlalu banyak PIN salah. Coba lagi setelah ${user.lockedUntil.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB, atau minta admin mengganti PIN.`);
@@ -105,28 +131,54 @@ export async function logout() {
   redirect("/masuk");
 }
 
-/** Hanya bisa dipakai sekali, saat database masih kosong. */
-export async function setupOwner(fd: FormData) {
+/** Daftarkan bisnis baru beserta akun owner-nya. */
+export async function registerBusiness(fd: FormData) {
+  const err: (m: string) => never = (m) => loginError(m, "/daftar");
+  const businessName = text(fd, "businessName");
+  const slug = normalizeSlug(text(fd, "store"));
   const name = text(fd, "name");
   const pin = text(fd, "pin");
-  if (!name) loginError("Nama wajib diisi.");
-  if (!PIN_RULE.test(pin)) loginError("PIN harus 4 sampai 8 angka.");
-  if (pin !== text(fd, "pin2")) loginError("Kedua PIN tidak sama.");
-  const owner = await db.$transaction(async (tx) => {
-    if (await tx.user.count()) return null;
-    const u = await tx.user.create({ data: { name, role: "OWNER", pinHash: hashPin(pin) } });
-    await tx.location.createMany({ data: [{ name: "Gudang", type: "WAREHOUSE" }, { name: "Toko Offline", type: "STORE" }] });
-    await tx.wallet.createMany({
-      data: [
-        { name: "Rekening Bank Naeema", kind: "BANK", currency: "IDR" },
-        { name: `Kas ${name}`, kind: "PERSON", ownerId: u.id, currency: "IDR" },
-      ],
+  const required = process.env.SIGNUP_CODE;
+  if (required && text(fd, "signupCode") !== required) err("Kode undangan salah.");
+  if (!businessName) err("Nama bisnis wajib diisi.");
+  const problem = slugProblem(slug);
+  if (problem) err(problem);
+  if (!name) err("Nama Anda wajib diisi.");
+  if (!PIN_RULE.test(pin)) err("PIN harus 4 sampai 8 angka.");
+  if (pin !== text(fd, "pin2")) err("Kedua PIN tidak sama.");
+  if (await db.business.findUnique({ where: { slug } })) err(`Kode toko "${slug}" sudah dipakai. Pilih kode lain.`);
+
+  let owner;
+  try {
+    owner = await db.$transaction(async (tx) => {
+      const b = await tx.business.create({ data: { name: businessName, slug } });
+      const u = await tx.user.create({ data: { businessId: b.id, name, role: "OWNER", pinHash: hashPin(pin) } });
+      await tx.location.createMany({
+        data: [
+          { businessId: b.id, name: "Gudang", type: "WAREHOUSE" },
+          { businessId: b.id, name: "Toko Offline", type: "STORE" },
+        ],
+      });
+      await tx.wallet.createMany({
+        data: [
+          { businessId: b.id, name: "Rekening Bank", kind: "BANK", currency: "IDR" },
+          { businessId: b.id, name: `Kas ${name}`, kind: "PERSON", ownerId: u.id, currency: "IDR" },
+        ],
+      });
+      await tx.category.create({ data: { businessId: b.id, name: "Umum" } });
+      return u;
     });
-    return u;
-  });
-  if (!owner) loginError("Akun owner sudah pernah dibuat. Silakan masuk.");
+  } catch (e) {
+    console.error(e);
+    err("Gagal mendaftar. Mungkin kode toko baru saja dipakai orang lain. Coba lagi.");
+  }
+  if (!owner) err("Gagal mendaftar. Coba lagi.");
+  await rememberStore(slug);
   await startSession(owner.id);
-  redirect("/pengaturan?ok=" + encodeURIComponent("Akun owner dibuat. Lanjutkan dengan mengisi kurs, tim, dan dompet."));
+  redirect(
+    "/pengaturan?ok=" +
+      encodeURIComponent(`Bisnis terdaftar. Kode toko Anda: ${slug}. Lanjutkan dengan mengisi kategori, kurs, tim, dan dompet.`),
+  );
 }
 
 export async function changeMyPin(fd: FormData) {
@@ -145,7 +197,8 @@ export async function resetPin(fd: FormData) {
   const me = await requireAdmin();
   await attempt("/pengaturan", "PIN diganti. Sesi login lama orang itu sudah diakhiri.", async () => {
     const id = int(fd, "id");
-    const target = await db.user.findUniqueOrThrow({ where: { id } });
+    const target = await db.user.findFirst({ where: { id, businessId: me.businessId } });
+    if (!target) throw new BusinessError("Pengguna tidak ditemukan.");
     if (target.role === "OWNER" && me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa mengganti PIN owner.");
     const pin = text(fd, "pin");
     if (!PIN_RULE.test(pin)) throw new BusinessError("PIN harus 4 sampai 8 angka.");
@@ -159,7 +212,7 @@ export async function resetPin(fd: FormData) {
 export async function saveSale(input: SaleInput): Promise<{ ok: true; id: number; number: string } | { ok: false; error: string }> {
   const user = await requireUser();
   try {
-    const sale = await createSale(db, user.id, input);
+    const sale = await createSale(db, user, input);
     revalidatePath("/", "layout");
     return { ok: true, id: sale.id, number: sale.number };
   } catch (e) {
@@ -172,18 +225,25 @@ export async function saveSale(input: SaleInput): Promise<{ ok: true; id: number
 export async function voidSaleAction(fd: FormData) {
   const user = await requireAdmin();
   const id = int(fd, "id");
-  await attempt(`/penjualan/${id}`, "Penjualan dibatalkan, stok dikembalikan.", () => voidSale(db, user.id, id, text(fd, "reason")));
+  await attempt(`/penjualan/${id}`, "Penjualan dibatalkan, stok dikembalikan.", () => voidSale(db, user, id, text(fd, "reason")));
 }
 
 // ---------- produk ----------
 
+async function ownCategory(businessId: number, id: number) {
+  const c = await db.category.findFirst({ where: { id, businessId } });
+  if (!c) throw new BusinessError("Pilih kategori.");
+  return c;
+}
+
 export async function createProduct(fd: FormData) {
-  await requireAdmin();
+  const user = await requireAdmin();
+  const bid = user.businessId;
   await attempt("/produk", "Produk ditambahkan.", async () => {
     const name = text(fd, "name");
-    const category = text(fd, "category");
     const base = text(fd, "skuBase").toUpperCase();
-    if (!name || !category || !base) throw new BusinessError("Nama, kategori, dan kode SKU wajib diisi.");
+    if (!name || !base) throw new BusinessError("Nama, kategori, dan kode SKU wajib diisi.");
+    const category = await ownCategory(bid, int(fd, "categoryId"));
     const priceIdr = money(fd, "priceIdr", "IDR")!;
     const myr = money(fd, "priceMyr", "MYR", false);
     const sgd = money(fd, "priceSgd", "SGD", false);
@@ -191,12 +251,14 @@ export async function createProduct(fd: FormData) {
     const sizes = text(fd, "sizes").split(",").map((s) => s.trim()).filter(Boolean);
     const combos = (colors.length ? colors : [""]).flatMap((c) => (sizes.length ? sizes : [""]).map((s) => [c, s] as const));
     await db.$transaction(async (tx) => {
-      const p = await tx.product.create({ data: { name, category } });
+      const p = await tx.product.create({ data: { businessId: bid, name, categoryId: category.id } });
       for (const [color, size] of combos) {
         const sku = [base, color.toUpperCase().replace(/\s+/g, "").slice(0, 4), size.toUpperCase().replace(/\s+/g, "")].filter(Boolean).join("-");
-        if (await tx.variant.findUnique({ where: { sku } })) throw new BusinessError(`SKU ${sku} sudah dipakai.`);
+        if (await tx.variant.findUnique({ where: { businessId_sku: { businessId: bid, sku } } }))
+          throw new BusinessError(`SKU ${sku} sudah dipakai.`);
         await tx.variant.create({
           data: {
+            businessId: bid,
             productId: p.id, sku, color: color || null, size: size || null, priceIdr,
             prices: {
               create: [
@@ -212,13 +274,16 @@ export async function createProduct(fd: FormData) {
 }
 
 export async function saveVariant(fd: FormData) {
-  await requireAdmin();
+  const user = await requireAdmin();
+  const bid = user.businessId;
   const productId = int(fd, "productId");
   const id = int(fd, "id");
   await attempt(`/produk/${productId}`, "Varian disimpan.", async () => {
+    if (!(await db.product.count({ where: { id: productId, businessId: bid } }))) throw new BusinessError("Produk tidak ditemukan.");
+    if (id && !(await db.variant.count({ where: { id, productId, businessId: bid } }))) throw new BusinessError("Varian tidak ditemukan.");
     const sku = text(fd, "sku").toUpperCase();
     if (!sku) throw new BusinessError("SKU wajib diisi.");
-    const dup = await db.variant.findUnique({ where: { sku } });
+    const dup = await db.variant.findUnique({ where: { businessId_sku: { businessId: bid, sku } } });
     if (dup && dup.id !== id) throw new BusinessError(`SKU ${sku} sudah dipakai.`);
     const data = {
       sku,
@@ -227,7 +292,7 @@ export async function saveVariant(fd: FormData) {
       priceIdr: money(fd, "priceIdr", "IDR")!,
       active: fd.get("active") === "on",
     };
-    const v = id ? await db.variant.update({ where: { id }, data }) : await db.variant.create({ data: { ...data, productId, active: true } });
+    const v = id ? await db.variant.update({ where: { id }, data }) : await db.variant.create({ data: { ...data, businessId: bid, productId, active: true } });
     for (const cur of ["MYR", "SGD"]) {
       const price = money(fd, `price${cur}`, cur, false);
       if (price) {
@@ -244,12 +309,14 @@ export async function saveVariant(fd: FormData) {
 }
 
 export async function saveProduct(fd: FormData) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const id = int(fd, "id");
   await attempt(`/produk/${id}`, "Produk disimpan.", async () => {
     const name = text(fd, "name");
     if (!name) throw new BusinessError("Nama wajib diisi.");
-    await db.product.update({ where: { id }, data: { name, category: text(fd, "category"), active: fd.get("active") === "on" } });
+    if (!(await db.product.count({ where: { id, businessId: user.businessId } }))) throw new BusinessError("Produk tidak ditemukan.");
+    const category = await ownCategory(user.businessId, int(fd, "categoryId"));
+    await db.product.update({ where: { id }, data: { name, categoryId: category.id, active: fd.get("active") === "on" } });
   });
 }
 
@@ -270,14 +337,14 @@ function lines(fd: FormData) {
 export async function stockInAction(fd: FormData) {
   const user = await requireAdmin();
   await attempt("/stok", "Barang masuk dicatat.", async () =>
-    receiveStock(db, user.id, { locationId: int(fd, "locationId"), lines: lines(fd), note: text(fd, "note") || undefined }),
+    receiveStock(db, user, { locationId: int(fd, "locationId"), lines: lines(fd), note: text(fd, "note") || undefined }),
   );
 }
 
 export async function stockTransferAction(fd: FormData) {
   const user = await requireUser();
   await attempt(text(fd, "back") || "/stok", "Stok dipindahkan.", async () =>
-    transferStock(db, user.id, {
+    transferStock(db, user, {
       fromLocationId: int(fd, "fromLocationId"),
       toLocationId: int(fd, "toLocationId"),
       lines: lines(fd),
@@ -291,7 +358,7 @@ export async function stockAdjustAction(fd: FormData) {
   await attempt("/stok", "Stok dikoreksi.", async () => {
     const raw = text(fd, "countedQty");
     if (raw === "") throw new BusinessError("Isi jumlah fisik.");
-    await adjustStock(db, user.id, {
+    await adjustStock(db, user, {
       locationId: int(fd, "locationId"),
       variantId: int(fd, "variantId"),
       countedQty: Number(raw),
@@ -303,7 +370,7 @@ export async function stockAdjustAction(fd: FormData) {
 // ---------- event ----------
 
 export async function createEvent(fd: FormData) {
-  await requireAdmin();
+  const user = await requireAdmin();
   await attempt("/event", "Event dibuat. Lokasi stok untuk booth juga sudah dibuat.", async () => {
     const name = text(fd, "name");
     const start = text(fd, "startDate");
@@ -314,9 +381,10 @@ export async function createEvent(fd: FormData) {
     if (!(CURRENCIES as readonly string[]).includes(currency)) throw new BusinessError("Mata uang tidak valid.");
     await db.event.create({
       data: {
+        businessId: user.businessId,
         name, city: text(fd, "city") || null, country: text(fd, "country"), currency,
         startDate: startOfDay(start), endDate: startOfDay(end), notes: text(fd, "notes") || null,
-        location: { create: { name: `Booth ${name}`, type: "EVENT" } },
+        location: { create: { businessId: user.businessId, name: `Booth ${name}`, type: "EVENT" } },
       },
     });
   });
@@ -326,9 +394,9 @@ export async function returnEventStockAction(fd: FormData) {
   const user = await requireAdmin();
   const eventId = int(fd, "eventId");
   await attempt(`/event/${eventId}`, "Sisa stok dikembalikan.", async () => {
-    const ev = await db.event.findUnique({ where: { id: eventId }, include: { location: true } });
+    const ev = await db.event.findFirst({ where: { id: eventId, businessId: user.businessId }, include: { location: true } });
     if (!ev?.location) throw new BusinessError("Event tidak punya lokasi stok.");
-    await returnAllStock(db, user.id, ev.location.id, int(fd, "toLocationId"));
+    await returnAllStock(db, user, ev.location.id, int(fd, "toLocationId"));
   });
 }
 
@@ -340,8 +408,9 @@ export async function cashMoveAction(fd: FormData) {
     const type = text(fd, "type") as CashMoveInput["type"];
     const fromWalletId = int(fd, "fromWalletId") || null;
     const toWalletId = int(fd, "toWalletId") || null;
-    const from = fromWalletId ? await db.wallet.findUnique({ where: { id: fromWalletId } }) : null;
-    const to = toWalletId ? await db.wallet.findUnique({ where: { id: toWalletId } }) : null;
+    const bid = user.businessId;
+    const from = fromWalletId ? await db.wallet.findFirst({ where: { id: fromWalletId, businessId: bid } }) : null;
+    const to = toWalletId ? await db.wallet.findFirst({ where: { id: toWalletId, businessId: bid } }) : null;
     const mainCur = (from ?? to)?.currency;
     if (!mainCur) throw new BusinessError("Pilih dompet.");
     await createCashMove(db, user, {
@@ -375,9 +444,14 @@ export async function createUser(fd: FormData) {
     if (role === "OWNER" && me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa menambah owner.");
     const pin = text(fd, "pin");
     if (!PIN_RULE.test(pin)) throw new BusinessError("PIN harus 4 sampai 8 angka.");
-    const u = await db.user.create({ data: { name, role, pinHash: hashPin(pin) } });
+    if (!["OWNER", "ADMIN", "STAFF"].includes(role)) throw new BusinessError("Peran tidak valid.");
+    const bid = me.businessId;
+    const u = await db.user.create({ data: { businessId: bid, name, role, pinHash: hashPin(pin) } });
     const curs = CURRENCIES.filter((c) => fd.get(`wallet_${c}`) === "on");
-    for (const c of curs) await db.wallet.create({ data: { name: `Kas ${name}${curs.length > 1 ? ` (${c})` : ""}`, kind: "PERSON", ownerId: u.id, currency: c } });
+    for (const c of curs)
+      await db.wallet.create({
+        data: { businessId: bid, name: `Kas ${name}${curs.length > 1 ? ` (${c})` : ""}`, kind: "PERSON", ownerId: u.id, currency: c },
+      });
   });
 }
 
@@ -386,57 +460,72 @@ export async function toggleUser(fd: FormData) {
   await attempt("/pengaturan", "Status pengguna diubah.", async () => {
     const id = int(fd, "id");
     if (id === me.id) throw new BusinessError("Tidak bisa menonaktifkan diri sendiri.");
-    const u = await db.user.findUniqueOrThrow({ where: { id } });
+    const u = await db.user.findFirst({ where: { id, businessId: me.businessId } });
+    if (!u) throw new BusinessError("Pengguna tidak ditemukan.");
     await db.user.update({ where: { id }, data: { active: !u.active } });
     if (u.active) await db.session.deleteMany({ where: { userId: id } });
   });
 }
 
 export async function createWallet(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "Dompet ditambahkan.", async () => {
     const name = text(fd, "name");
     if (!name) throw new BusinessError("Nama dompet wajib diisi.");
     const kind = text(fd, "kind");
     const ownerId = int(fd, "ownerId") || null;
     if (kind === "PERSON" && !ownerId) throw new BusinessError("Dompet orang harus punya pemegang.");
-    await db.wallet.create({ data: { name, kind, ownerId: kind === "PERSON" ? ownerId : null, currency: text(fd, "currency") } });
+    if (kind === "PERSON" && !(await db.user.count({ where: { id: ownerId!, businessId: me.businessId } })))
+      throw new BusinessError("Pemegang tidak ditemukan.");
+    const currency = text(fd, "currency");
+    if (!(CURRENCIES as readonly string[]).includes(currency)) throw new BusinessError("Mata uang tidak valid.");
+    await db.wallet.create({
+      data: { businessId: me.businessId, name, kind, ownerId: kind === "PERSON" ? ownerId : null, currency },
+    });
   });
 }
 
 export async function toggleWallet(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "Status dompet diubah.", async () => {
-    const w = await db.wallet.findUniqueOrThrow({ where: { id: int(fd, "id") } });
+    const w = await db.wallet.findFirst({ where: { id: int(fd, "id"), businessId: me.businessId } });
+    if (!w) throw new BusinessError("Dompet tidak ditemukan.");
     await db.wallet.update({ where: { id: w.id }, data: { active: !w.active } });
   });
 }
 
 export async function addRate(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "Kurs disimpan.", async () => {
     const rate = Number(text(fd, "idrPerUnit").replace(/\./g, "").replace(",", "."));
     if (!(rate > 0)) throw new BusinessError("Kurs harus lebih dari 0.");
-    await db.exchangeRate.create({ data: { currency: text(fd, "currency"), idrPerUnit: rate } });
+    const currency = text(fd, "currency");
+    if (currency === "IDR" || !(CURRENCIES as readonly string[]).includes(currency)) throw new BusinessError("Mata uang tidak valid.");
+    await db.exchangeRate.create({ data: { businessId: me.businessId, currency, idrPerUnit: rate } });
   });
 }
 
 export async function createLocation(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "Lokasi ditambahkan.", async () => {
     const name = text(fd, "name");
     if (!name) throw new BusinessError("Nama lokasi wajib diisi.");
-    await db.location.create({ data: { name, type: text(fd, "type") } });
+    await db.location.create({ data: { businessId: me.businessId, name, type: text(fd, "type") } });
   });
 }
 
 export async function saveReceiptSettings(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "Pengaturan struk disimpan.", async () => {
     for (const k of RECEIPT_KEYS) {
       let value = text(fd, k).slice(0, 200);
       if (k === "paperWidth") value = value === "80" ? "80" : "58";
-      await db.setting.upsert({ where: { key: `receipt.${k}` }, create: { key: `receipt.${k}`, value }, update: { value } });
+      const key = `receipt.${k}`;
+      await db.setting.upsert({
+        where: { businessId_key: { businessId: me.businessId, key } },
+        create: { businessId: me.businessId, key, value },
+        update: { value },
+      });
     }
   });
 }
@@ -447,11 +536,11 @@ const QR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const QR_MAX_BYTES = 1024 * 1024;
 
 export async function createPaymentQr(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "QR pembayaran ditambahkan.", async () => {
     const name = text(fd, "name");
     if (!name) throw new BusinessError("Nama QR wajib diisi.");
-    const wallet = await db.wallet.findUnique({ where: { id: int(fd, "walletId") } });
+    const wallet = await db.wallet.findFirst({ where: { id: int(fd, "walletId"), businessId: me.businessId } });
     if (!wallet) throw new BusinessError("Pilih dompet/rekening penerima.");
     const file = fd.get("image");
     if (!(file instanceof File) || file.size === 0) throw new BusinessError("Pilih gambar QR.");
@@ -459,6 +548,7 @@ export async function createPaymentQr(fd: FormData) {
     if (file.size > QR_MAX_BYTES) throw new BusinessError("Ukuran gambar maksimal 1 MB. Potong gambar supaya hanya bagian QR-nya.");
     await db.paymentQr.create({
       data: {
+        businessId: me.businessId,
         name,
         currency: wallet.currency,
         walletId: wallet.id,
@@ -471,16 +561,53 @@ export async function createPaymentQr(fd: FormData) {
 }
 
 export async function togglePaymentQr(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "Status QR diubah.", async () => {
-    const qr = await db.paymentQr.findUniqueOrThrow({ where: { id: int(fd, "id") }, select: { id: true, active: true } });
+    const qr = await db.paymentQr.findFirst({
+      where: { id: int(fd, "id"), businessId: me.businessId },
+      select: { id: true, active: true },
+    });
+    if (!qr) throw new BusinessError("QR tidak ditemukan.");
     await db.paymentQr.update({ where: { id: qr.id }, data: { active: !qr.active } });
   });
 }
 
 export async function deletePaymentQr(fd: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await attempt("/pengaturan", "QR dihapus.", async () => {
-    await db.paymentQr.delete({ where: { id: int(fd, "id") } });
+    const { count } = await db.paymentQr.deleteMany({ where: { id: int(fd, "id"), businessId: me.businessId } });
+    if (!count) throw new BusinessError("QR tidak ditemukan.");
+  });
+}
+
+// ---------- bisnis & kategori ----------
+
+export async function saveBusiness(fd: FormData) {
+  const me = await requireAdmin();
+  await attempt("/pengaturan", "Nama bisnis disimpan.", async () => {
+    if (me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa mengganti nama bisnis.");
+    const name = text(fd, "name");
+    if (!name) throw new BusinessError("Nama bisnis wajib diisi.");
+    await db.business.update({ where: { id: me.businessId }, data: { name: name.slice(0, 80) } });
+  });
+}
+
+export async function saveCategory(fd: FormData) {
+  const me = await requireAdmin();
+  const id = int(fd, "id");
+  await attempt("/pengaturan", id ? "Kategori disimpan." : "Kategori ditambahkan.", async () => {
+    const name = text(fd, "name").slice(0, 60);
+    if (!name) throw new BusinessError("Nama kategori wajib diisi.");
+    const dup = await db.category.findUnique({ where: { businessId_name: { businessId: me.businessId, name } } });
+    if (dup && dup.id !== id) throw new BusinessError(`Kategori "${name}" sudah ada.`);
+    if (id) {
+      const { count } = await db.category.updateMany({
+        where: { id, businessId: me.businessId },
+        data: { name, active: fd.get("active") === "on" },
+      });
+      if (!count) throw new BusinessError("Kategori tidak ditemukan.");
+    } else {
+      await db.category.create({ data: { businessId: me.businessId, name } });
+    }
   });
 }

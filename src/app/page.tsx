@@ -10,16 +10,17 @@ import { jakartaDay, startOfDay } from "@/lib/time";
 export default async function Home({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const user = await requireUser();
+  const bid = user.businessId;
   const admin = isAdmin(user);
   const todayStr = jakartaDay();
   const today = startOfDay(todayStr);
   const monthStart = startOfDay(todayStr.slice(0, 8) + "01");
 
   const [todaySales, monthByChannel, pending, position] = await Promise.all([
-    db.sale.aggregate({ _sum: { totalIdr: true }, _count: true, where: { status: "PAID", date: { gte: today }, ...(admin ? {} : { cashierId: user.id }) } }),
-    db.sale.groupBy({ by: ["channel"], _sum: { totalIdr: true }, where: { status: "PAID", date: { gte: monthStart } } }),
-    db.cashMove.count({ where: { status: "PENDING", ...(admin ? {} : { toWallet: { ownerId: user.id } }) } }),
-    cashPosition(admin ? {} : { ownerId: user.id }),
+    db.sale.aggregate({ _sum: { totalIdr: true }, _count: true, where: { businessId: bid, status: "PAID", date: { gte: today }, ...(admin ? {} : { cashierId: user.id }) } }),
+    db.sale.groupBy({ by: ["channel"], _sum: { totalIdr: true }, where: { businessId: bid, status: "PAID", date: { gte: monthStart } } }),
+    db.cashMove.count({ where: { businessId: bid, status: "PENDING", ...(admin ? {} : { toWallet: { ownerId: user.id } }) } }),
+    cashPosition(bid, admin ? {} : { ownerId: user.id }),
   ]);
   const monthTotal = monthByChannel.reduce((s, c) => s + (c._sum.totalIdr ?? 0), 0);
   const personHeld = position.holders.filter((h) => h.kind === "PERSON").reduce((s, h) => s + h.totalIdr, 0);

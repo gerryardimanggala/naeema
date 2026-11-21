@@ -29,18 +29,19 @@ const STATUS: Record<string, string> = { PENDING: "Menunggu", CONFIRMED: "Dikonf
 export default async function KasPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const user = await requireUser();
+  const bid = user.businessId;
   const admin = isAdmin(user);
   const [wallets, events, position, pending, history] = await Promise.all([
-    db.wallet.findMany({ where: { active: true }, orderBy: [{ kind: "asc" }, { name: "asc" }] }),
-    db.event.findMany({ orderBy: { startDate: "desc" }, take: 20 }),
-    cashPosition(admin ? {} : { ownerId: user.id }),
+    db.wallet.findMany({ where: { businessId: bid, active: true }, orderBy: [{ kind: "asc" }, { name: "asc" }] }),
+    db.event.findMany({ where: { businessId: bid }, orderBy: { startDate: "desc" }, take: 20 }),
+    cashPosition(bid, admin ? {} : { ownerId: user.id }),
     db.cashMove.findMany({
-      where: { status: "PENDING", ...(admin ? {} : { OR: [{ toWallet: { ownerId: user.id } }, { createdById: user.id }] }) },
+      where: { businessId: bid, status: "PENDING", ...(admin ? {} : { OR: [{ toWallet: { ownerId: user.id } }, { createdById: user.id }] }) },
       include: { fromWallet: true, toWallet: true, createdBy: true },
       orderBy: { date: "asc" },
     }),
     db.cashMove.findMany({
-      where: admin ? {} : { OR: [{ fromWallet: { ownerId: user.id } }, { toWallet: { ownerId: user.id } }, { createdById: user.id }] },
+      where: admin ? { businessId: bid } : { businessId: bid, OR: [{ fromWallet: { ownerId: user.id } }, { toWallet: { ownerId: user.id } }, { createdById: user.id }] },
       include: { fromWallet: true, toWallet: true, createdBy: true, confirmedBy: true, event: true },
       orderBy: { date: "desc" },
       take: 100,

@@ -1,6 +1,6 @@
 {
-  "name": "Naeema POS",
-  "short_name": "Naeema",
+  "name": "Kasir POS",
+  "short_name": "Kasir",
   "start_url": "/kasir",
   "display": "standalone",
   "background_color": "#f6f5f3",
