@@ -74,7 +74,7 @@ async function startSession(userId: number) {
   });
 }
 
-function loginError(msg: string, path = "/masuk"): never {
+function loginError(msg: string, path = "/login"): never {
   redirect(path + "?error=" + encodeURIComponent(msg));
 }
 
@@ -96,12 +96,12 @@ export async function chooseStore(fd: FormData) {
   const blocked = businessBlockReason(business);
   if (blocked) loginError(blocked);
   await rememberStore(business.slug);
-  redirect("/masuk");
+  redirect("/login");
 }
 
 export async function forgetStore() {
   (await cookies()).delete(STORE_COOKIE);
-  redirect("/masuk");
+  redirect("/login");
 }
 
 export async function login(fd: FormData) {
@@ -132,7 +132,7 @@ export async function logout() {
   const token = store.get(SESSION_COOKIE)?.value;
   if (token) await db.session.deleteMany({ where: { token } });
   store.delete(SESSION_COOKIE);
-  redirect("/masuk");
+  redirect("/login");
 }
 
 /** Daftarkan bisnis baru beserta akun owner-nya. */
@@ -187,7 +187,7 @@ export async function registerBusiness(fd: FormData) {
 
 export async function changeMyPin(fd: FormData) {
   const user = await getCurrentUser();
-  if (!user) redirect("/masuk");
+  if (!user) redirect("/login");
   await attempt("/akun", "PIN diganti.", async () => {
     if (!verifyPin(text(fd, "oldPin"), user.pinHash)) throw new BusinessError("PIN lama salah.");
     const pin = text(fd, "pin");

@@ -72,7 +72,7 @@ export default async function DaftarPage({ searchParams }: { searchParams: SP })
       )}
       <p className="mt-4 text-center text-sm text-neutral-500">
         Sudah punya akun?{" "}
-        <Link href="/masuk" className="font-medium text-neutral-900 underline">
+        <Link href="/login" className="font-medium text-neutral-900 underline">
           Masuk
         </Link>
       </p>

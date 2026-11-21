@@ -18,7 +18,7 @@ export const getCurrentUser = cache(async () => {
 
 export async function requireUser() {
   const user = await getCurrentUser();
-  if (!user) redirect("/masuk");
+  if (!user) redirect("/login");
   return user;
 }
 

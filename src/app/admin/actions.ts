@@ -15,7 +15,7 @@ import { SIGNUP_MODES, createBusinessWithOwner, setPlatformSetting } from "@/lib
 // ---------- masuk & keluar ----------
 
 function loginError(msg: string): never {
-  redirect("/admin/masuk?error=" + encodeURIComponent(msg));
+  redirect("/admin/login?error=" + encodeURIComponent(msg));
 }
 
 async function startAdminSession(adminId: number) {
@@ -59,7 +59,7 @@ export async function adminLogout() {
   const token = store.get(ADMIN_COOKIE)?.value;
   if (token) await db.adminSession.deleteMany({ where: { token } });
   store.delete(ADMIN_COOKIE);
-  redirect("/admin/masuk");
+  redirect("/admin/login");
 }
 
 /** Hanya bisa dipakai sekali, saat belum ada admin sama sekali (instalasi baru). */
