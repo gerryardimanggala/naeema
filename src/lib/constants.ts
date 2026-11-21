@@ -3,15 +3,6 @@ export type Currency = (typeof CURRENCIES)[number];
 
 export const CURRENCY_DECIMALS: Record<string, number> = { IDR: 0, MYR: 2, SGD: 2 };
 
-export const CATEGORIES: Record<string, string> = {
-  HIJAB: "Hijab",
-  MUKENA: "Mukena",
-  MUKENA_TRAVELING: "Mukena traveling",
-  MANSET: "Manset",
-  SLEEVE: "Sleeve",
-  LAINNYA: "Lainnya",
-};
-
 export const CHANNELS: Record<string, string> = {
   OFFLINE: "Toko offline",
   MARKETPLACE: "Marketplace",

@@ -2,14 +2,20 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { formatMoney } from "@/lib/money";
-import { CATEGORIES } from "@/lib/constants";
 import { createProduct } from "../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 
 export default async function ProdukPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
-  await requireAdmin();
-  const products = await db.product.findMany({ include: { variants: { include: { prices: true, stocks: true } } }, orderBy: [{ category: "asc" }, { name: "asc" }] });
+  const me = await requireAdmin();
+  const [products, categories] = await Promise.all([
+    db.product.findMany({
+      where: { businessId: me.businessId },
+      include: { category: true, variants: { include: { prices: true, stocks: true } } },
+      orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
+    }),
+    db.category.findMany({ where: { businessId: me.businessId, active: true }, orderBy: { name: "asc" } }),
+  ]);
   return (
     <div>
       <PageHeader title="Produk" desc="Produk, varian warna/ukuran, dan harga per mata uang." />
@@ -22,11 +28,16 @@ export default async function ProdukPage({ searchParams }: { searchParams: SP })
           </div>
           <div>
             <label className="label">Kategori</label>
-            <select name="category" className="input">
-              {Object.entries(CATEGORIES).map(([k, l]) => (
-                <option key={k} value={k}>{l}</option>
+            <select name="categoryId" className="input" required>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {!categories.length && (
+              <p className="mt-1 text-xs text-red-700">
+                Belum ada kategori. <Link href="/pengaturan#kategori" className="underline">Tambah di Pengaturan</Link>.
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Kode SKU dasar</label>
@@ -81,7 +92,7 @@ export default async function ProdukPage({ searchParams }: { searchParams: SP })
                     <td>
                       <Link href={`/produk/${p.id}`} className="font-medium underline">{p.name}</Link>
                     </td>
-                    <td>{CATEGORIES[p.category]}</td>
+                    <td>{p.category.name}</td>
                     <td className="text-xs">{p.variants.map((v) => [v.color, v.size].filter(Boolean).join(" ") || v.sku).join(", ")}</td>
                     <td className="num">{v0 ? formatMoney(v0.priceIdr, "IDR") : "-"}</td>
                     <td className="num">{price("MYR") ? formatMoney(price("MYR")!.price, "MYR") : "-"}</td>

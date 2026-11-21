@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { fromMinor } from "@/lib/money";
-import { CATEGORIES } from "@/lib/constants";
 import { saveProduct, saveVariant } from "../../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 
@@ -53,11 +52,19 @@ function VariantRow({ productId, v }: { productId: number; v: V }) {
 }
 
 export default async function ProductDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const { id } = await params;
   const sp = await searchParams;
-  const product = await db.product.findUnique({ where: { id: Number(id) }, include: { variants: { include: { prices: true }, orderBy: { sku: "asc" } } } });
+  const product = await db.product.findFirst({
+    where: { id: Number(id) || 0, businessId: me.businessId },
+    include: { variants: { include: { prices: true }, orderBy: { sku: "asc" } } },
+  });
   if (!product) notFound();
+  // Kategori nonaktif tetap ditampilkan kalau sedang dipakai produk ini.
+  const categories = await db.category.findMany({
+    where: { businessId: me.businessId, OR: [{ active: true }, { id: product.categoryId }] },
+    orderBy: { name: "asc" },
+  });
   return (
     <div>
       <PageHeader title={product.name}>
@@ -73,9 +80,9 @@ export default async function ProductDetail({ params, searchParams }: { params: 
           </div>
           <div>
             <label className="label">Kategori</label>
-            <select name="category" defaultValue={product.category} className="input">
-              {Object.entries(CATEGORIES).map(([k, l]) => (
-                <option key={k} value={k}>{l}</option>
+            <select name="categoryId" defaultValue={product.categoryId} className="input">
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>

@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { formatRate } from "@/lib/money";
 import { CURRENCIES, LOCATION_TYPES, ROLES, WALLET_KINDS } from "@/lib/constants";
-import { addRate, createLocation, createPaymentQr, createUser, createWallet, deletePaymentQr, resetPin, saveReceiptSettings, togglePaymentQr, toggleUser, toggleWallet } from "../actions";
+import { addRate, saveBusiness, saveCategory, createLocation, createPaymentQr, createUser, createWallet, deletePaymentQr, resetPin, saveReceiptSettings, togglePaymentQr, toggleUser, toggleWallet } from "../actions";
 import { getReceiptSettings } from "@/lib/settings";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 import { fmtDate } from "@/lib/time";
@@ -10,20 +10,67 @@ import { fmtDate } from "@/lib/time";
 export default async function PengaturanPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const me = await requireAdmin();
+  const bid = me.businessId;
   const [users, wallets, rates, locations] = await Promise.all([
-    db.user.findMany({ orderBy: { name: "asc" } }),
-    db.wallet.findMany({ include: { owner: true }, orderBy: [{ kind: "asc" }, { name: "asc" }] }),
-    db.exchangeRate.findMany({ orderBy: { date: "desc" }, take: 20 }),
-    db.location.findMany({ where: { type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
+    db.user.findMany({ where: { businessId: bid }, orderBy: { name: "asc" } }),
+    db.wallet.findMany({ where: { businessId: bid }, include: { owner: true }, orderBy: [{ kind: "asc" }, { name: "asc" }] }),
+    db.exchangeRate.findMany({ where: { businessId: bid }, orderBy: { date: "desc" }, take: 20 }),
+    db.location.findMany({ where: { businessId: bid, type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
   ]);
-  const receipt = await getReceiptSettings();
-  const qrs = await db.paymentQr.findMany({ select: { id: true, name: true, currency: true, active: true, note: true, wallet: { select: { name: true } } }, orderBy: [{ currency: "asc" }, { name: "asc" }] });
+  const receipt = await getReceiptSettings(bid);
+  const qrs = await db.paymentQr.findMany({ where: { businessId: bid }, select: { id: true, name: true, currency: true, active: true, note: true, wallet: { select: { name: true } } }, orderBy: [{ currency: "asc" }, { name: "asc" }] });
+  const [business, categories] = await Promise.all([
+    db.business.findUniqueOrThrow({ where: { id: bid } }),
+    db.category.findMany({ where: { businessId: bid }, include: { _count: { select: { products: true } } }, orderBy: { name: "asc" } }),
+  ]);
   const latest = CURRENCIES.filter((c) => c !== "IDR").map((c) => rates.find((r) => r.currency === c));
   return (
     <div>
-      <PageHeader title="Pengaturan" desc="Pengguna, dompet, kurs, dan lokasi stok." />
+      <PageHeader title="Pengaturan" desc="Bisnis, kategori, pengguna, dompet, kurs, dan lokasi stok." />
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Bisnis">
+          <form action={saveBusiness} className="flex flex-wrap items-end gap-2">
+            <div className="flex-1">
+              <label className="label">Nama bisnis</label>
+              <input name="name" defaultValue={business.name} className="input" required maxLength={80} disabled={me.role !== "OWNER"} />
+            </div>
+            {me.role === "OWNER" && <button className="btn">Simpan</button>}
+          </form>
+          <p className="mt-2 text-sm">
+            Kode toko: <b>{business.slug}</b>
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Tim Anda memasukkan kode toko ini saat pertama kali masuk di perangkat baru. Nama bisnis tampil di menu atas dan di struk
+            (kalau nama toko di pengaturan struk dikosongkan).
+          </p>
+        </Card>
+
+        <Card title="Kategori produk">
+          <div id="kategori" className="space-y-2">
+            {categories.map((c) => (
+              <form key={c.id} action={saveCategory} className="flex items-center gap-2">
+                <input type="hidden" name="id" value={c.id} />
+                <input name="name" defaultValue={c.name} className="input flex-1" required maxLength={60} />
+                <span className="w-16 text-right text-xs text-neutral-500">{c._count.products} produk</span>
+                <label className="flex items-center gap-1 text-xs">
+                  <input type="checkbox" name="active" defaultChecked={c.active} /> aktif
+                </label>
+                <button className="btn-secondary">Simpan</button>
+              </form>
+            ))}
+            {!categories.length && <p className="text-sm text-neutral-500">Belum ada kategori.</p>}
+          </div>
+          <form action={saveCategory} className="mt-3 flex items-end gap-2 border-t border-neutral-200 pt-3">
+            <div className="flex-1">
+              <label className="label">Kategori baru</label>
+              <input name="name" className="input" required maxLength={60} placeholder="mis. Hijab, Mukena, Aksesoris" />
+            </div>
+            <button className="btn">Tambah</button>
+          </form>
+          <p className="mt-2 text-xs text-neutral-500">Kategori nonaktif tidak muncul saat menambah produk baru, tapi produk lama tetap tersimpan.</p>
+        </Card>
+
         <Card title="Kurs ke IDR">
           <div className="mb-3 grid grid-cols-2 gap-2">
             {latest.map((r, i) => (
@@ -97,7 +144,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
             </div>
             <div className="col-span-2">
               <label className="label">Catatan untuk pembeli (opsional)</label>
-              <input name="note" className="input" placeholder="mis. a.n. Naeema Hijab" />
+              <input name="note" className="input" placeholder="mis. a.n. nama rekening" />
             </div>
             <button className="btn col-span-2">Tambah QR</button>
           </form>
@@ -243,7 +290,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
           <form action={createWallet} className="grid grid-cols-2 gap-2">
             <div className="col-span-2">
               <label className="label">Nama</label>
-              <input name="name" className="input" required placeholder="mis. Rekening Mandiri Naeema" />
+              <input name="name" className="input" required placeholder="mis. Rekening Mandiri" />
             </div>
             <div>
               <label className="label">Jenis</label>

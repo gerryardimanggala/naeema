@@ -14,7 +14,7 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireUser();
-  const ev = await db.event.findUnique({ where: { id: Number(id) }, include: { location: true } });
+  const ev = await db.event.findFirst({ where: { id: Number(id) || 0, businessId: user.businessId }, include: { location: true } });
   if (!ev) notFound();
   const locId = ev.location?.id ?? -1;
   const [sales, expenses, movesIn, movesOut, saleItems, stocks, otherLocations, rates] = await Promise.all([
@@ -24,11 +24,11 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
     db.stockMove.groupBy({ by: ["variantId"], _sum: { qty: true }, where: { fromLocationId: locId, type: "TRANSFER" } }),
     db.saleItem.groupBy({ by: ["variantId"], _sum: { qty: true }, where: { sale: { eventId: ev.id, status: "PAID" } } }),
     db.stock.findMany({ where: { locationId: locId } }),
-    db.location.findMany({ where: { active: true, type: { not: "EVENT" } } }),
-    latestRates(),
+    db.location.findMany({ where: { businessId: user.businessId, active: true, type: { not: "EVENT" } } }),
+    latestRates(user.businessId),
   ]);
   const variantIds = [...new Set([...movesIn, ...saleItems, ...stocks].map((m) => m.variantId))];
-  const variants = await db.variant.findMany({ where: { id: { in: variantIds } }, include: { product: true }, orderBy: { sku: "asc" } });
+  const variants = await db.variant.findMany({ where: { id: { in: variantIds }, businessId: user.businessId }, include: { product: true }, orderBy: { sku: "asc" } });
   const sum = (arr: { variantId: number; _sum: { qty: number | null } }[], v: number) => arr.find((x) => x.variantId === v)?._sum.qty ?? 0;
 
   const salesIdr = sales.reduce((s, x) => s + x.totalIdr, 0);

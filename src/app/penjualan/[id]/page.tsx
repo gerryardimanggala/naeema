@@ -12,8 +12,8 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireUser();
-  const sale = await db.sale.findUnique({
-    where: { id: Number(id) },
+  const sale = await db.sale.findFirst({
+    where: { id: Number(id) || 0, businessId: user.businessId },
     include: { items: { include: { variant: { include: { product: true } } } }, payments: { include: { wallet: true } }, event: true, location: true, cashier: true },
   });
   if (!sale || (!isAdmin(user) && sale.cashierId !== user.id)) notFound();

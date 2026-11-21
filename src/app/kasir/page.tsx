@@ -7,19 +7,20 @@ import { fmtDate } from "@/lib/time";
 
 export default async function KasirPage() {
   const user = await requireUser();
+  const bid = user.businessId;
   const recent = new Date();
   recent.setDate(recent.getDate() - 7);
   const [locations, events, variants, wallets, rates, qrs] = await Promise.all([
-    db.location.findMany({ where: { active: true, type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
-    db.event.findMany({ where: { endDate: { gte: recent } }, include: { location: true }, orderBy: { startDate: "asc" } }),
+    db.location.findMany({ where: { businessId: bid, active: true, type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
+    db.event.findMany({ where: { businessId: bid, endDate: { gte: recent } }, include: { location: true }, orderBy: { startDate: "asc" } }),
     db.variant.findMany({
-      where: { active: true, product: { active: true } },
+      where: { businessId: bid, active: true, product: { active: true } },
       include: { product: true, prices: true, stocks: true },
       orderBy: [{ product: { name: "asc" } }, { sku: "asc" }],
     }),
-    db.wallet.findMany({ where: { active: true }, include: { owner: true }, orderBy: { name: "asc" } }),
-    latestRates(),
-    db.paymentQr.findMany({ where: { active: true }, select: { id: true, name: true, currency: true, walletId: true, note: true }, orderBy: { name: "asc" } }),
+    db.wallet.findMany({ where: { businessId: bid, active: true }, include: { owner: true }, orderBy: { name: "asc" } }),
+    latestRates(bid),
+    db.paymentQr.findMany({ where: { businessId: bid, active: true }, select: { id: true, name: true, currency: true, walletId: true, note: true }, orderBy: { name: "asc" } }),
   ]);
   return (
     <div>

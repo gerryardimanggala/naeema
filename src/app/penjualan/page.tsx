@@ -17,6 +17,7 @@ export default async function PenjualanPage({ searchParams }: { searchParams: SP
   const [sales, events] = await Promise.all([
     db.sale.findMany({
       where: {
+        businessId: user.businessId,
         date: { gte: start, lte: end },
         ...(channel ? { channel } : {}),
         ...(eventId ? { eventId } : {}),
@@ -26,7 +27,7 @@ export default async function PenjualanPage({ searchParams }: { searchParams: SP
       orderBy: { date: "desc" },
       take: 500,
     }),
-    db.event.findMany({ orderBy: { startDate: "desc" } }),
+    db.event.findMany({ where: { businessId: user.businessId }, orderBy: { startDate: "desc" } }),
   ]);
   const paid = sales.filter((s) => s.status === "PAID");
   const totalIdr = paid.reduce((s, x) => s + x.totalIdr, 0);

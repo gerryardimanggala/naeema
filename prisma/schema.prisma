@@ -14,6 +14,8 @@ datasource db {
 }
 
 model User {
+  businessId         Int
+  business           Business    @relation(fields: [businessId], references: [id])
   id                 Int         @id @default(autoincrement())
   name               String
   role               String      @default("STAFF") // OWNER | ADMIN | STAFF
@@ -28,22 +30,31 @@ model User {
   stockMoves         StockMove[]
   cashMovesCreated   CashMove[]  @relation("CashMoveCreatedBy")
   cashMovesConfirmed CashMove[]  @relation("CashMoveConfirmedBy")
+
+  @@index([businessId])
 }
 
 model Product {
-  id        Int       @id @default(autoincrement())
-  name      String
-  category  String // HIJAB | MUKENA | MUKENA_TRAVELING | MANSET | SLEEVE | LAINNYA
-  active    Boolean   @default(true)
-  variants  Variant[]
-  createdAt DateTime  @default(now())
+  businessId Int
+  business   Business  @relation(fields: [businessId], references: [id])
+  id         Int       @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   Category  @relation(fields: [categoryId], references: [id])
+  active     Boolean   @default(true)
+  variants   Variant[]
+  createdAt  DateTime  @default(now())
+
+  @@index([businessId])
 }
 
 model Variant {
+  businessId Int
+  business   Business       @relation(fields: [businessId], references: [id])
   id         Int            @id @default(autoincrement())
   productId  Int
   product    Product        @relation(fields: [productId], references: [id])
-  sku        String         @unique
+  sku        String
   color      String?
   size       String?
   priceIdr   Int
@@ -52,6 +63,8 @@ model Variant {
   stocks     Stock[]
   stockMoves StockMove[]
   saleItems  SaleItem[]
+
+  @@unique([businessId, sku])
 }
 
 // Harga resmi dalam mata uang lain (mis. untuk pameran di Malaysia/Singapura).
@@ -66,31 +79,39 @@ model VariantPrice {
 }
 
 model Event {
-  id        Int        @id @default(autoincrement())
-  name      String
-  city      String?
-  country   String // ID | MY | SG
-  startDate DateTime
-  endDate   DateTime
-  currency  String
-  notes     String?
-  location  Location?
-  sales     Sale[]
-  cashMoves CashMove[]
-  createdAt DateTime   @default(now())
+  businessId Int
+  business   Business   @relation(fields: [businessId], references: [id])
+  id         Int        @id @default(autoincrement())
+  name       String
+  city       String?
+  country    String // ID | MY | SG
+  startDate  DateTime
+  endDate    DateTime
+  currency   String
+  notes      String?
+  location   Location?
+  sales      Sale[]
+  cashMoves  CashMove[]
+  createdAt  DateTime   @default(now())
+
+  @@index([businessId])
 }
 
 model Location {
-  id        Int         @id @default(autoincrement())
-  name      String
-  type      String // WAREHOUSE | STORE | EVENT | MARKETPLACE
-  eventId   Int?        @unique
-  event     Event?      @relation(fields: [eventId], references: [id])
-  active    Boolean     @default(true)
-  stocks    Stock[]
-  movesFrom StockMove[] @relation("MoveFrom")
-  movesTo   StockMove[] @relation("MoveTo")
-  sales     Sale[]
+  businessId Int
+  business   Business    @relation(fields: [businessId], references: [id])
+  id         Int         @id @default(autoincrement())
+  name       String
+  type       String // WAREHOUSE | STORE | EVENT | MARKETPLACE
+  eventId    Int?        @unique
+  event      Event?      @relation(fields: [eventId], references: [id])
+  active     Boolean     @default(true)
+  stocks     Stock[]
+  movesFrom  StockMove[] @relation("MoveFrom")
+  movesTo    StockMove[] @relation("MoveTo")
+  sales      Sale[]
+
+  @@index([businessId])
 }
 
 model Stock {
@@ -104,6 +125,8 @@ model Stock {
 }
 
 model StockMove {
+  businessId     Int
+  business       Business  @relation(fields: [businessId], references: [id])
   id             Int       @id @default(autoincrement())
   type           String // IN | TRANSFER | SALE | VOID | ADJUST
   variantId      Int
@@ -119,11 +142,15 @@ model StockMove {
   userId         Int
   user           User      @relation(fields: [userId], references: [id])
   createdAt      DateTime  @default(now())
+
+  @@index([businessId])
 }
 
 model Sale {
+  businessId  Int
+  business    Business    @relation(fields: [businessId], references: [id])
   id          Int         @id @default(autoincrement())
-  number      String      @unique
+  number      String
   date        DateTime    @default(now())
   channel     String // OFFLINE | MARKETPLACE | EVENT
   marketplace String? // SHOPEE | TOKOPEDIA | TIKTOK | LAZADA | LAINNYA
@@ -147,6 +174,8 @@ model Sale {
   payments    Payment[]
   stockMoves  StockMove[]
   createdAt   DateTime    @default(now())
+
+  @@unique([businessId, number])
 }
 
 model SaleItem {
@@ -171,22 +200,28 @@ model Payment {
 
 // Tempat uang berada: dompet seseorang, rekening bank, atau saldo marketplace.
 model Wallet {
-  id        Int         @id @default(autoincrement())
-  name      String
-  kind      String // PERSON | BANK | MARKETPLACE
-  ownerId   Int?
-  owner     User?       @relation(fields: [ownerId], references: [id])
-  currency  String
-  active    Boolean     @default(true)
-  payments  Payment[]
-  movesOut  CashMove[]  @relation("CashFrom")
-  movesIn   CashMove[]  @relation("CashTo")
-  qrs       PaymentQr[]
-  createdAt DateTime    @default(now())
+  businessId Int
+  business   Business    @relation(fields: [businessId], references: [id])
+  id         Int         @id @default(autoincrement())
+  name       String
+  kind       String // PERSON | BANK | MARKETPLACE
+  ownerId    Int?
+  owner      User?       @relation(fields: [ownerId], references: [id])
+  currency   String
+  active     Boolean     @default(true)
+  payments   Payment[]
+  movesOut   CashMove[]  @relation("CashFrom")
+  movesIn    CashMove[]  @relation("CashTo")
+  qrs        PaymentQr[]
+  createdAt  DateTime    @default(now())
+
+  @@index([businessId])
 }
 
 // Semua perpindahan uang di luar penjualan.
 model CashMove {
+  businessId    Int
+  business      Business  @relation(fields: [businessId], references: [id])
   id            Int       @id @default(autoincrement())
   type          String // DEPOSIT | EXPENSE | EXCHANGE | TRANSFER | ADJUST
   fromWalletId  Int?
@@ -207,13 +242,19 @@ model CashMove {
   confirmedAt   DateTime?
   date          DateTime  @default(now())
   createdAt     DateTime  @default(now())
+
+  @@index([businessId])
 }
 
 model ExchangeRate {
+  businessId Int
+  business   Business @relation(fields: [businessId], references: [id])
   id         Int      @id @default(autoincrement())
   currency   String
   idrPerUnit Float
   date       DateTime @default(now())
+
+  @@index([businessId])
 }
 
 model Session {
@@ -226,20 +267,61 @@ model Session {
 
 // Pengaturan umum, mis. kop struk.
 model Setting {
-  key   String @id
-  value String
+  businessId Int
+  business   Business @relation(fields: [businessId], references: [id])
+  key        String
+  value      String
+
+  @@id([businessId, key])
 }
 
 // Gambar QR statis untuk pembayaran (QRIS, Touch 'n Go, DuitNow, PayNow, dll.).
 model PaymentQr {
-  id        Int      @id @default(autoincrement())
-  name      String
-  currency  String // mata uang yang diterima QR ini
-  walletId  Int // uang dari QR ini masuk ke dompet/rekening mana
-  wallet    Wallet   @relation(fields: [walletId], references: [id])
-  image     Bytes
-  mimeType  String
-  note      String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  businessId Int
+  business   Business @relation(fields: [businessId], references: [id])
+  id         Int      @id @default(autoincrement())
+  name       String
+  currency   String // mata uang yang diterima QR ini
+  walletId   Int // uang dari QR ini masuk ke dompet/rekening mana
+  wallet     Wallet   @relation(fields: [walletId], references: [id])
+  image      Bytes
+  mimeType   String
+  note       String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+}
+
+// Satu bisnis/toko yang memakai aplikasi. Semua data lain milik tepat satu bisnis.
+model Business {
+  id         Int            @id @default(autoincrement())
+  name       String
+  slug       String         @unique // kode toko untuk login
+  active     Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  users      User[]
+  products   Product[]
+  variants   Variant[]
+  categories Category[]
+  events     Event[]
+  locations  Location[]
+  sales      Sale[]
+  wallets    Wallet[]
+  cashMoves  CashMove[]
+  rates      ExchangeRate[]
+  settings   Setting[]
+  qrs        PaymentQr[]
+  stockMoves StockMove[]
+}
+
+model Category {
+  id         Int       @id @default(autoincrement())
+  businessId Int
+  business   Business  @relation(fields: [businessId], references: [id])
+  name       String
+  active     Boolean   @default(true)
+  products   Product[]
+
+  @@unique([businessId, name])
 }

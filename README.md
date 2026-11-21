@@ -1,8 +1,14 @@
 # Naeema POS
 
-Aplikasi kasir, stok, dan kas untuk Naeema. Versi pertama (uji coba).
+Aplikasi kasir, stok, dan kas. Dibuat untuk Naeema, dan bisa dipakai banyak bisnis sekaligus dalam satu aplikasi.
 
 ## Fitur
+
+- **Banyak bisnis**: setiap bisnis mendaftar di `/daftar` dan mendapat **kode toko** (mis. `naeema`).
+  Semua data (produk, stok, penjualan, kas, QR, pengaturan) terpisah per bisnis; pengguna hanya bisa melihat
+  data bisnisnya sendiri. Saat masuk di perangkat baru, isi kode toko dulu, lalu pilih nama dan PIN.
+  Tautan langsung: `/masuk?toko=kode-toko`. Kategori produk dan nama bisnis diatur sendiri di Pengaturan.
+  Isi variabel `SIGNUP_CODE` di Vercel kalau pendaftaran hanya boleh untuk orang yang diberi kode undangan.
 
 - **Kasir**: penjualan dari toko offline, marketplace (Shopee, Tokopedia, TikTok Shop, Lazada), atau pameran/event.
   Mata uang IDR (default), MYR, SGD. Kurs ke IDR dikunci di setiap nota. Setiap pembayaran dicatat masuk ke dompet siapa.
@@ -34,8 +40,9 @@ Aplikasi kasir, stok, dan kas untuk Naeema. Versi pertama (uji coba).
    Variabel `DATABASE_URL` dan `DATABASE_URL_UNPOOLED` terisi otomatis.
 4. **Deploy** (atau Redeploy jika sudah sempat deploy sebelum database tersambung).
    Proses build otomatis membuat tabel di database (`prisma migrate deploy`).
-5. Buka link aplikasinya. Karena database masih kosong, halaman pertama meminta membuat **akun owner**
-   (nama + PIN). Setelah itu isi kurs, tim, dompet, produk, dan stok dari menu Pengaturan/Produk/Stok.
+5. Buka `/daftar` di link aplikasinya untuk mendaftarkan bisnis pertama (nama bisnis, kode toko, nama owner, PIN).
+   Setelah itu isi kategori, kurs, tim, dompet, produk, dan stok dari menu Pengaturan/Produk/Stok.
+   Data yang sudah ada sebelum fitur banyak bisnis otomatis menjadi bisnis "Naeema Hijab" dengan kode toko `naeema`.
 
 ## Menjalankan di komputer
 
@@ -45,7 +52,7 @@ Butuh Node.js 20+ dan Postgres.
 npm install
 cp .env.example .env        # sesuaikan alamat Postgres
 npx prisma migrate deploy
-npm run db:seed             # data contoh, semua akun PIN 1234 (opsional, jangan di database asli)
+npm run db:seed             # bisnis contoh, kode toko "contoh", semua akun PIN 1234 (jangan di database asli)
 npm run dev                 # buka http://localhost:3000
 ```
 

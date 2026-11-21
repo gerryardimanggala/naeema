@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const { start, end } = dayRange(url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined);
   const sales = await db.sale.findMany({
-    where: { date: { gte: start, lte: end } },
+    where: { businessId: user.businessId, date: { gte: start, lte: end } },
     include: { event: true, cashier: true, location: true, payments: { include: { wallet: true } } },
     orderBy: { date: "asc" },
   });
@@ -27,6 +27,6 @@ export async function GET(req: Request) {
   ]);
   const body = [header, ...rows].map((r) => r.map(csv).join(",")).join("\n");
   return new Response("﻿" + body, {
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="penjualan-naeema.csv"` },
+    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="penjualan-${user.business.slug}.csv"` },
   });
 }

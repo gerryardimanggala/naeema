@@ -10,8 +10,8 @@ import { Card, Empty, Flash, PageHeader, str, type SP } from "@/components/ui";
 export default async function EventPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const user = await requireUser();
-  const events = await db.event.findMany({ orderBy: { startDate: "desc" } });
-  const totals = await db.sale.groupBy({ by: ["eventId"], _sum: { totalIdr: true, total: true }, _count: true, where: { status: "PAID", eventId: { not: null } } });
+  const events = await db.event.findMany({ where: { businessId: user.businessId }, orderBy: { startDate: "desc" } });
+  const totals = await db.sale.groupBy({ by: ["eventId"], _sum: { totalIdr: true, total: true }, _count: true, where: { businessId: user.businessId, status: "PAID", eventId: { not: null } } });
   const byEvent = new Map(totals.map((t) => [t.eventId, t]));
   return (
     <div>
