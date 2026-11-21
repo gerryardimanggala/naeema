@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { formatRate } from "@/lib/money";
 import { CURRENCIES, LOCATION_TYPES, ROLES, WALLET_KINDS } from "@/lib/constants";
-import { addRate, createLocation, createUser, createWallet, resetPin, toggleUser, toggleWallet } from "../actions";
+import { addRate, createLocation, createUser, createWallet, resetPin, saveReceiptSettings, toggleUser, toggleWallet } from "../actions";
+import { getReceiptSettings } from "@/lib/settings";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 import { fmtDate } from "@/lib/time";
 
@@ -15,6 +16,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
     db.exchangeRate.findMany({ orderBy: { date: "desc" }, take: 20 }),
     db.location.findMany({ where: { type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
   ]);
+  const receipt = await getReceiptSettings();
   const latest = CURRENCIES.filter((c) => c !== "IDR").map((c) => rates.find((r) => r.currency === c));
   return (
     <div>
@@ -47,6 +49,35 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
             <button className="btn">Simpan kurs</button>
           </form>
           <p className="mt-2 text-xs text-neutral-500">Kurs ini jadi usulan di kasir. Setiap nota menyimpan kursnya sendiri, jadi mengubah kurs tidak mengubah nota lama.</p>
+        </Card>
+
+        <Card title="Struk (printer thermal)">
+          <form action={saveReceiptSettings} className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <label className="label">Nama toko di struk</label>
+              <input name="storeName" defaultValue={receipt.storeName} className="input" />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Alamat</label>
+              <input name="address" defaultValue={receipt.address} className="input" />
+            </div>
+            <div>
+              <label className="label">Telepon / Instagram</label>
+              <input name="phone" defaultValue={receipt.phone} className="input" />
+            </div>
+            <div>
+              <label className="label">Lebar kertas</label>
+              <select name="paperWidth" defaultValue={receipt.paperWidth} className="input">
+                <option value="58">58 mm (32 karakter)</option>
+                <option value="80">80 mm (48 karakter)</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="label">Pesan di bawah struk</label>
+              <input name="footer" defaultValue={receipt.footer} className="input" />
+            </div>
+            <button className="btn col-span-2">Simpan pengaturan struk</button>
+          </form>
         </Card>
 
         <Card title="Lokasi stok">

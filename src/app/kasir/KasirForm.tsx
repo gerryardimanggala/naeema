@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { saveSale } from "../actions";
 import { CHANNELS, CURRENCIES, MARKETPLACES, PAYMENT_METHODS } from "@/lib/constants";
 import { formatMoney, fromMinor, toMinor, decimals } from "@/lib/money";
@@ -13,6 +14,7 @@ type Line = { variantId: number; qty: number; price: number; converted: boolean 
 type Pay = { method: string; amount: string; walletId: number };
 
 const STORAGE_KEY = "naeema-kasir-pref";
+const AUTOPRINT_KEY = "naeema-kasir-autoprint";
 
 export default function KasirForm(props: {
   userId: number;
@@ -37,6 +39,13 @@ export default function KasirForm(props: {
   const [search, setSearch] = useState("");
   const [result, setResult] = useState<{ ok: boolean; text: string; id?: number } | null>(null);
   const [pending, startTransition] = useTransition();
+  const [autoPrint, setAutoPrint] = useState(false);
+  const router = useRouter();
+  useEffect(() => {
+    try {
+      setAutoPrint(localStorage.getItem(AUTOPRINT_KEY) === "1");
+    } catch {}
+  }, []);
 
   const event = events.find((e) => e.id === eventId) ?? null;
   const effectiveLocation = channel === "EVENT" ? event?.locationId ?? null : locationId;
@@ -139,6 +148,10 @@ export default function KasirForm(props: {
         note,
       });
       if (res.ok) {
+        if (autoPrint) {
+          router.push(`/penjualan/${res.id}/struk?auto=1`);
+          return;
+        }
         setResult({ ok: true, text: `Tersimpan: ${res.number}`, id: res.id });
         setCart([]);
         setDiscount("");
@@ -345,6 +358,19 @@ export default function KasirForm(props: {
         </div>
 
         <input className="input" placeholder="Catatan (opsional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <label className="flex items-center gap-2 text-xs text-neutral-600">
+          <input
+            type="checkbox"
+            checked={autoPrint}
+            onChange={(e) => {
+              setAutoPrint(e.target.checked);
+              try {
+                localStorage.setItem(AUTOPRINT_KEY, e.target.checked ? "1" : "0");
+              } catch {}
+            }}
+          />
+          Langsung buka struk setelah simpan
+        </label>
         <button type="button" className="btn w-full py-3 text-base" disabled={!canSubmit} onClick={submit}>
           {pending ? "Menyimpan..." : "Simpan penjualan"}
         </button>
@@ -352,7 +378,11 @@ export default function KasirForm(props: {
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-700"}`}>
             {result.text}{" "}
             {result.id && (
-              <Link className="underline" href={`/penjualan/${result.id}`}>lihat nota</Link>
+              <>
+                <Link className="underline" href={`/penjualan/${result.id}/struk`}>cetak struk</Link>
+                {" · "}
+                <Link className="underline" href={`/penjualan/${result.id}`}>lihat nota</Link>
+              </>
             )}
           </p>
         )}

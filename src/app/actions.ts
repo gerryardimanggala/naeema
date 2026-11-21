@@ -13,6 +13,7 @@ import {
 import { toMinor } from "@/lib/money";
 import { CURRENCIES } from "@/lib/constants";
 import { formDate, startOfDay } from "@/lib/time";
+import { RECEIPT_KEYS } from "@/lib/receipt";
 
 // ---------- helpers ----------
 
@@ -426,5 +427,16 @@ export async function createLocation(fd: FormData) {
     const name = text(fd, "name");
     if (!name) throw new BusinessError("Nama lokasi wajib diisi.");
     await db.location.create({ data: { name, type: text(fd, "type") } });
+  });
+}
+
+export async function saveReceiptSettings(fd: FormData) {
+  await requireAdmin();
+  await attempt("/pengaturan", "Pengaturan struk disimpan.", async () => {
+    for (const k of RECEIPT_KEYS) {
+      let value = text(fd, k).slice(0, 200);
+      if (k === "paperWidth") value = value === "80" ? "80" : "58";
+      await db.setting.upsert({ where: { key: `receipt.${k}` }, create: { key: `receipt.${k}`, value }, update: { value } });
+    }
   });
 }

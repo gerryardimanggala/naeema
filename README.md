@@ -17,6 +17,10 @@ Aplikasi kasir, stok, dan kas untuk Naeema. Versi pertama (uji coba).
 - **Peran & login**: setiap orang masuk dengan nama + PIN (4-8 angka, disimpan sebagai hash).
   Akun dikunci 15 menit setelah 5 PIN salah. Owner/Admin melihat semua dan bisa mengganti PIN orang lain;
   Staf hanya input penjualan dan mengelola dompetnya sendiri.
+- **Cetak struk thermal** (58 mm atau 80 mm, kop toko diatur di Pengaturan):
+  - *Cetak*: lewat dialog cetak browser, untuk printer yang terpasang di laptop/HP (USB, atau Bluetooth lewat aplikasi seperti RawBT di Android).
+  - *Cetak ke printer Bluetooth*: kirim perintah ESC/POS langsung dari Chrome (Android/laptop) lewat Web Bluetooth. Tidak didukung Safari/iPhone.
+  - Opsi di kasir untuk langsung membuka struk setelah menyimpan penjualan.
 - **Zona waktu**: semua tanggal memakai WIB (Asia/Jakarta), walaupun server berjalan dalam UTC.
 
 ## Online di Vercel + Neon (Postgres)
@@ -55,4 +59,3 @@ Setoran yang belum dikonfirmasi tampil terpisah dan belum mengurangi saldo.
 
 - Mode offline penuh untuk booth tanpa internet.
 - Impor pesanan marketplace dari file CSV/Excel dan sinkron stok otomatis.
-- Cetak struk.
