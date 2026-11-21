@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 import {
   createSale, voidSale, receiveStock, transferStock, adjustStock, returnAllStock,
-  createCashMove, decideCashMove, walletBalances, BusinessError, type Actor,
+  createCashMove, decideCashMove, cancelExpense, walletBalances, BusinessError, type Actor,
 } from "../src/lib/services";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -174,4 +174,16 @@ test("nomor nota memakai tanggal Jakarta", async () => {
   const { jakartaDay } = await import("../src/lib/time");
   // 20 Nov 2026 pukul 20.00 UTC = 21 Nov 03.00 WIB
   assert.equal(jakartaDay(new Date("2026-11-20T20:00:00Z")), "2026-11-21");
+});
+
+test("pengeluaran operasional bisa dibatalkan oleh admin atau pencatatnya", async () => {
+  const before = (await walletBalances(db, bId)).get(bca)!.balance;
+  const rent = await createCashMove(db, owner, { type: "EXPENSE", fromWalletId: bca, amount: 50000, category: "SEWA", note: "Sewa ruko" });
+  assert.equal(rent.status, "CONFIRMED");
+  assert.equal((await walletBalances(db, bId)).get(bca)!.balance, before - 50000);
+  await assert.rejects(cancelExpense(db, sari, rent.id), BusinessError); // staf bukan pencatatnya
+  await assert.rejects(cancelExpense(db, other, rent.id), BusinessError); // bisnis lain
+  await cancelExpense(db, owner, rent.id);
+  assert.equal((await walletBalances(db, bId)).get(bca)!.balance, before);
+  await assert.rejects(cancelExpense(db, owner, rent.id), /sudah dibatalkan/);
 });

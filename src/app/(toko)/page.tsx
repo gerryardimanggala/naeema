@@ -6,8 +6,10 @@ import { formatMoney } from "@/lib/money";
 import { CHANNELS, WALLET_KINDS } from "@/lib/constants";
 import { Card, Flash, PageHeader, Stat, str, type SP } from "@/components/ui";
 import { jakartaDay, startOfDay } from "@/lib/time";
+import { getT } from "@/lib/i18n";
 
 export default async function Home({ searchParams }: { searchParams: SP }) {
+  const t = await getT();
   const sp = await searchParams;
   const user = await requireUser();
   const bid = user.businessId;
@@ -27,30 +29,30 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
 
   return (
     <div>
-      <PageHeader title={`Halo, ${user.name}`} desc="Ringkasan hari ini dan posisi uang.">
+      <PageHeader title={t("Halo, {name}", { name: user.name })} desc={t("Ringkasan hari ini dan posisi uang.")}>
         <Link href="/kasir" className="btn">
-          + Penjualan baru
+          {t("+ Penjualan baru")}
         </Link>
       </PageHeader>
-      <Flash ok={str(sp.ok)} error={sp.error === "akses" ? "Halaman itu hanya untuk admin." : str(sp.error)} />
+      <Flash ok={str(sp.ok)} error={sp.error === "akses" ? t("Halaman itu hanya untuk admin.") : str(sp.error)} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label={admin ? "Penjualan hari ini" : "Penjualan saya hari ini"} value={formatMoney(todaySales._sum.totalIdr ?? 0, "IDR")} sub={`${todaySales._count} nota`} />
-        {admin && <Stat label="Penjualan bulan ini" value={formatMoney(monthTotal, "IDR")} sub={monthByChannel.map((c) => `${CHANNELS[c.channel]}: ${formatMoney(c._sum.totalIdr ?? 0, "IDR")}`).join(" · ") || "-"} />}
-        <Stat label={admin ? "Uang dipegang orang" : "Uang yang saya pegang"} value={formatMoney(personHeld, "IDR")} sub="setara rupiah, kurs terbaru" />
-        <Stat label="Setoran menunggu konfirmasi" value={pending} sub={pending ? <Link href="/kas" className="underline">Buka halaman kas</Link> : "Tidak ada"} />
+        <Stat label={admin ? t("Penjualan hari ini") : t("Penjualan saya hari ini")} value={formatMoney(todaySales._sum.totalIdr ?? 0, "IDR")} sub={t("{n} nota", { n: todaySales._count })} />
+        {admin && <Stat label={t("Penjualan bulan ini")} value={formatMoney(monthTotal, "IDR")} sub={monthByChannel.map((c) => `${t(CHANNELS[c.channel])}: ${formatMoney(c._sum.totalIdr ?? 0, "IDR")}`).join(" · ") || "-"} />}
+        <Stat label={admin ? t("Uang dipegang orang") : t("Uang yang saya pegang")} value={formatMoney(personHeld, "IDR")} sub={t("setara rupiah, kurs terbaru")} />
+        <Stat label={t("Setoran menunggu konfirmasi")} value={pending} sub={pending ? <Link href="/kas" className="underline">{t("Buka halaman kas")}</Link> : t("Tidak ada")} />
       </div>
 
-      <Card title={admin ? "Posisi uang per orang / rekening" : "Uang yang saya pegang"}>
+      <Card title={admin ? t("Posisi uang per orang / rekening") : t("Uang yang saya pegang")}>
         <div className="overflow-x-auto">
           <table className="tbl">
             <thead>
               <tr>
-                <th>Pemegang</th>
-                <th>Dompet</th>
-                <th className="num">Saldo</th>
-                <th className="num">Setara IDR</th>
-                <th className="num">Setoran belum dikonfirmasi</th>
+                <th>{t("Pemegang")}</th>
+                <th>{t("Dompet")}</th>
+                <th className="num">{t("Saldo")}</th>
+                <th className="num">{t("Setara IDR")}</th>
+                <th className="num">{t("Setoran belum dikonfirmasi")}</th>
               </tr>
             </thead>
             <tbody>
@@ -60,8 +62,8 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
                     {i === 0 && (
                       <td rowSpan={h.rows.length} className="font-medium">
                         {h.label}
-                        <div className="text-xs font-normal text-neutral-500">{WALLET_KINDS[h.kind]}</div>
-                        {h.rows.length > 1 && <div className="text-xs font-normal text-neutral-500">Total ≈ {formatMoney(h.totalIdr, "IDR")}</div>}
+                        <div className="text-xs font-normal text-neutral-500">{t(WALLET_KINDS[h.kind])}</div>
+                        {h.rows.length > 1 && <div className="text-xs font-normal text-neutral-500">{t("Total ≈ {amount}", { amount: formatMoney(h.totalIdr, "IDR") })}</div>}
                       </td>
                     )}
                     <td>{r.wallet.name}</td>
@@ -75,7 +77,7 @@ export default async function Home({ searchParams }: { searchParams: SP }) {
           </table>
         </div>
         <p className="mt-3 text-xs text-neutral-500">
-          Saldo = uang diterima dari penjualan + uang masuk − pengeluaran − setoran yang sudah dikonfirmasi.
+          {t("Saldo = uang diterima dari penjualan + uang masuk − pengeluaran − setoran yang sudah dikonfirmasi.")}
         </p>
       </Card>
     </div>

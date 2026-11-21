@@ -9,8 +9,10 @@ import { toIdr } from "@/lib/money";
 import { COUNTRIES, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { returnEventStockAction } from "../../actions";
 import { Card, Flash, PageHeader, Stat, str, type SP } from "@/components/ui";
+import { getT } from "@/lib/i18n";
 
 export default async function EventDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
+  const t = await getT();
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireUser();
@@ -48,23 +50,23 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
     <div>
       <PageHeader
         title={ev.name}
-        desc={`${[ev.city, COUNTRIES[ev.country]].filter(Boolean).join(", ")} · ${fmtDate(ev.startDate)} - ${fmtDate(ev.endDate)} · ${ev.currency}`}
+        desc={`${[ev.city, t(COUNTRIES[ev.country])].filter(Boolean).join(", ")} · ${fmtDate(ev.startDate)} - ${fmtDate(ev.endDate)} · ${ev.currency}`}
       >
-        <Link href={`/stok?tab=pindah`} className="btn-secondary">Kirim stok ke booth</Link>
-        <Link href={`/penjualan?eventId=${ev.id}&from=${jakartaDay(ev.startDate)}`} className="btn-secondary">Lihat nota</Link>
+        <Link href={`/stok?tab=pindah`} className="btn-secondary">{t("Kirim stok ke booth")}</Link>
+        <Link href={`/penjualan?eventId=${ev.id}&from=${jakartaDay(ev.startDate)}`} className="btn-secondary">{t("Lihat nota")}</Link>
       </PageHeader>
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       {ev.notes && <p className="mb-4 text-sm text-neutral-600">{ev.notes}</p>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Penjualan" value={formatMoney(salesLocal, ev.currency)} sub={`${sales.length} nota`} />
-        <Stat label="Setara IDR (kurs saat transaksi)" value={formatMoney(salesIdr, "IDR")} />
-        <Stat label="Pengeluaran event" value={formatMoney(expenseIdr, "IDR")} sub="≈ IDR, kurs terbaru" />
-        <Stat label="Hasil bersih (perkiraan)" value={formatMoney(salesIdr - expenseIdr, "IDR")} sub="belum termasuk HPP" />
+        <Stat label={t("Penjualan")} value={formatMoney(salesLocal, ev.currency)} sub={t("{n} nota", { n: sales.length })} />
+        <Stat label={t("Setara IDR (kurs saat transaksi)")} value={formatMoney(salesIdr, "IDR")} />
+        <Stat label={t("Pengeluaran event")} value={formatMoney(expenseIdr, "IDR")} sub={t("≈ IDR, kurs terbaru")} />
+        <Stat label={t("Hasil bersih (perkiraan)")} value={formatMoney(salesIdr - expenseIdr, "IDR")} sub={t("belum termasuk HPP")} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Uang hasil event masuk ke">
+        <Card title={t("Uang hasil event masuk ke")}>
           <table className="tbl">
             <tbody>
               {[...byWallet.values()].map((w) => (
@@ -76,16 +78,17 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
             </tbody>
           </table>
           <p className="mt-2 text-xs text-neutral-500">
-            Posisi saldo terkini (setelah setoran) ada di <Link href="/kas" className="underline">halaman Kas</Link>.
+            {t("Posisi saldo terkini (setelah setoran) ada di")} <Link href="/kas" className="underline">{t("halaman Kas")}</Link>.
           </p>
         </Card>
-        <Card title="Pengeluaran">
+        <Card title={t("Pengeluaran")}>
+          {expenses.length === 0 && <p className="text-sm text-neutral-500">{t("Belum ada pengeluaran untuk event ini.")}</p>}
           <table className="tbl">
             <tbody>
               {expenses.map((e) => (
                 <tr key={e.id}>
                   <td>
-                    {EXPENSE_CATEGORIES[e.category ?? "LAINNYA"]}
+                    {t(EXPENSE_CATEGORIES[e.category ?? "LAINNYA"])}
                     <div className="text-xs text-neutral-500">{e.note} · {e.fromWallet?.name}</div>
                   </td>
                   <td className="num">{formatMoney(e.amount, e.fromWallet!.currency)}</td>
@@ -93,19 +96,22 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
               ))}
             </tbody>
           </table>
+          <Link href="/pengeluaran" className="mt-2 inline-block text-xs underline">
+            {t("Catat pengeluaran event (pilih event ini di formulir)")}
+          </Link>
         </Card>
       </div>
 
-      <Card title="Stok booth: dibawa, terjual, sisa" className="mt-4">
+      <Card title={t("Stok booth: dibawa, terjual, sisa")} className="mt-4">
         <div className="overflow-x-auto">
           <table className="tbl">
             <thead>
               <tr>
-                <th>Produk</th>
-                <th className="num">Dibawa</th>
-                <th className="num">Terjual</th>
-                <th className="num">Dikembalikan</th>
-                <th className="num">Sisa di booth</th>
+                <th>{t("Produk")}</th>
+                <th className="num">{t("Dibawa")}</th>
+                <th className="num">{t("Terjual")}</th>
+                <th className="num">{t("Dikembalikan")}</th>
+                <th className="num">{t("Sisa di booth")}</th>
               </tr>
             </thead>
             <tbody>
@@ -127,14 +133,14 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
           <form action={returnEventStockAction} className="mt-3 flex flex-wrap items-end gap-2">
             <input type="hidden" name="eventId" value={ev.id} />
             <div>
-              <label className="label">Event selesai? Kembalikan semua sisa stok ke</label>
+              <label className="label">{t("Event selesai? Kembalikan semua sisa stok ke")}</label>
               <select name="toLocationId" className="input">
                 {otherLocations.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
             </div>
-            <button className="btn-secondary">Kembalikan sisa stok</button>
+            <button className="btn-secondary">{t("Kembalikan sisa stok")}</button>
           </form>
         )}
       </Card>

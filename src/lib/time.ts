@@ -25,6 +25,6 @@ export function fmtDate(d: Date) {
   return d.toLocaleDateString("id-ID", { timeZone: TZ });
 }
 
-export function fmtDateTime(d: Date, dateStyle: "short" | "full" = "short") {
-  return d.toLocaleString("id-ID", { timeZone: TZ, dateStyle, timeStyle: "short" });
+export function fmtDateTime(d: Date, dateStyle: "short" | "full" = "short", locale = "id-ID") {
+  return d.toLocaleString(locale, { timeZone: TZ, dateStyle, timeStyle: "short" });
 }

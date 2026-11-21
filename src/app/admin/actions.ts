@@ -11,6 +11,7 @@ import { readLogo } from "@/lib/logo";
 import { BusinessError } from "@/lib/services";
 import { normalizeSlug, slugProblem } from "@/lib/business";
 import { SIGNUP_MODES, createBusinessWithOwner, setPlatformSetting } from "@/lib/platform";
+import { getT } from "@/lib/i18n";
 
 // ---------- masuk & keluar ----------
 
@@ -33,13 +34,14 @@ async function startAdminSession(adminId: number) {
 }
 
 export async function adminLogin(fd: FormData) {
+  const t = await getT();
   const name = text(fd, "name");
   const pin = text(fd, "pin");
   const admin = name ? await db.platformAdmin.findFirst({ where: { name: { equals: name, mode: "insensitive" }, active: true } }) : null;
   // Pesan yang sama untuk nama salah dan PIN salah, supaya nama admin tidak bisa ditebak.
-  if (!admin) loginError("Nama atau PIN salah.");
+  if (!admin) loginError(t("Nama atau PIN salah."));
   if (admin.lockedUntil && admin.lockedUntil > new Date())
-    loginError(`Terlalu banyak PIN salah. Coba lagi setelah ${LOCK_MINUTES} menit.`);
+    loginError(t("Terlalu banyak PIN salah. Coba lagi setelah {min} menit.", { min: LOCK_MINUTES }));
   if (!verifyPin(pin, admin.pinHash)) {
     const failed = admin.failedLogins + 1;
     const lock = failed >= MAX_FAILED_LOGINS;
@@ -47,7 +49,7 @@ export async function adminLogin(fd: FormData) {
       where: { id: admin.id },
       data: { failedLogins: lock ? 0 : failed, lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60000) : null },
     });
-    loginError(lock ? `PIN salah ${MAX_FAILED_LOGINS} kali. Akun admin dikunci ${LOCK_MINUTES} menit.` : "Nama atau PIN salah.");
+    loginError(lock ? t("PIN salah {n} kali. Akun admin dikunci {min} menit.", { n: MAX_FAILED_LOGINS, min: LOCK_MINUTES }) : t("Nama atau PIN salah."));
   }
   await db.platformAdmin.update({ where: { id: admin.id }, data: { failedLogins: 0, lockedUntil: null } });
   await startAdminSession(admin.id);
@@ -64,16 +66,17 @@ export async function adminLogout() {
 
 /** Hanya bisa dipakai sekali, saat belum ada admin sama sekali (instalasi baru). */
 export async function setupFirstAdmin(fd: FormData) {
+  const t = await getT();
   const name = text(fd, "name");
   const pin = text(fd, "pin");
-  if (!name) loginError("Nama wajib diisi.");
-  if (!PIN_RULE.test(pin)) loginError("PIN harus 4 sampai 8 angka.");
-  if (pin !== text(fd, "pin2")) loginError("Kedua PIN tidak sama.");
+  if (!name) loginError(t("Nama wajib diisi."));
+  if (!PIN_RULE.test(pin)) loginError(t("PIN harus 4 sampai 8 angka."));
+  if (pin !== text(fd, "pin2")) loginError(t("Kedua PIN tidak sama."));
   const admin = await db.$transaction(async (tx) => {
     if (await tx.platformAdmin.count()) return null;
     return tx.platformAdmin.create({ data: { name, pinHash: hashPin(pin) } });
   });
-  if (!admin) loginError("Admin sudah ada. Silakan masuk.");
+  if (!admin) loginError(t("Admin sudah ada. Silakan masuk."));
   await startAdminSession(admin.id);
   redirect("/admin");
 }
@@ -88,7 +91,7 @@ export async function createPlatformAdmin(fd: FormData) {
     if (!name) throw new BusinessError("Nama wajib diisi.");
     if (!PIN_RULE.test(pin)) throw new BusinessError("PIN harus 4 sampai 8 angka.");
     if (await db.platformAdmin.findFirst({ where: { name: { equals: name, mode: "insensitive" } } }))
-      throw new BusinessError(`Nama admin "${name}" sudah dipakai.`);
+      throw new BusinessError('Nama admin "{name}" sudah dipakai.', { name });
     await db.platformAdmin.create({ data: { name, pinHash: hashPin(pin) } });
   });
 }
@@ -129,16 +132,18 @@ function int(fd: FormData, key: string) {
 }
 
 async function attempt(path: string, okMsg: string, fn: () => Promise<unknown>) {
+  const t = await getT();
   let error: string | null = null;
   try {
     await fn();
   } catch (e) {
-    if (e instanceof BusinessError) error = e.message;
+    if (e instanceof BusinessError) error = t(e.key, e.vars);
     else {
       console.error(e);
-      error = "Terjadi kesalahan. Coba lagi.";
+      error = t("Terjadi kesalahan. Coba lagi.");
     }
   }
+  okMsg = t(okMsg);
   revalidatePath("/", "layout");
   const q = new URLSearchParams(error ? { error } : { ok: okMsg }).toString();
   redirect(`${path}?${q}`);
@@ -174,6 +179,7 @@ export async function saveSignupSettings(fd: FormData) {
 
 export async function adminCreateBusiness(fd: FormData) {
   await requirePlatformAdmin();
+  const t = await getT();
   await attempt("/admin", "Toko dibuat.", async () => {
     const businessName = text(fd, "businessName").slice(0, 80);
     const slug = normalizeSlug(text(fd, "store"));
@@ -181,13 +187,13 @@ export async function adminCreateBusiness(fd: FormData) {
     const pin = text(fd, "pin");
     if (!businessName) throw new BusinessError("Nama bisnis wajib diisi.");
     const problem = slugProblem(slug);
-    if (problem) throw new BusinessError(problem);
+    if (problem) throw new BusinessError(problem, { slug });
     if (!ownerName) throw new BusinessError("Nama owner wajib diisi.");
     if (!PIN_RULE.test(pin)) throw new BusinessError("PIN owner harus 4 sampai 8 angka.");
-    if (await db.business.findUnique({ where: { slug } })) throw new BusinessError(`Kode toko "${slug}" sudah dipakai.`);
+    if (await db.business.findUnique({ where: { slug } })) throw new BusinessError('Kode toko "{slug}" sudah dipakai.', { slug });
     const logo = await readLogo(fd, false);
     await db.$transaction((tx) =>
-      createBusinessWithOwner(tx, { businessName, slug, ownerName, pinHash: hashPin(pin), logo }),
+      createBusinessWithOwner(tx, { businessName, slug, ownerName, pinHash: hashPin(pin), logo, t }),
     );
   });
 }
@@ -259,6 +265,7 @@ export async function renameBusiness(fd: FormData) {
 export async function adminCreateUser(fd: FormData) {
   await requirePlatformAdmin();
   const businessId = int(fd, "businessId");
+  const t = await getT();
   await attempt(`/admin/toko/${businessId}`, "Pengguna ditambahkan.", async () => {
     await findBusiness(businessId);
     const name = text(fd, "name");
@@ -269,7 +276,7 @@ export async function adminCreateUser(fd: FormData) {
     if (!PIN_RULE.test(pin)) throw new BusinessError("PIN harus 4 sampai 8 angka.");
     await db.$transaction(async (tx) => {
       const u = await tx.user.create({ data: { businessId, name, role, pinHash: hashPin(pin) } });
-      await tx.wallet.create({ data: { businessId, name: `Kas ${name}`, kind: "PERSON", ownerId: u.id, currency: "IDR" } });
+      await tx.wallet.create({ data: { businessId, name: t("Kas {name}", { name }), kind: "PERSON", ownerId: u.id, currency: "IDR" } });
     });
   });
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { ReceiptLine } from "@/lib/receipt";
 import { receiptToEscPos, rgbaToRaster, type Raster } from "@/lib/escpos";
+import { useT } from "@/components/I18nProvider";
 
 // Layanan Bluetooth yang umum dipakai printer thermal murah (58/80 mm).
 const PRINTER_SERVICES = [
@@ -95,13 +96,14 @@ export default function ReceiptActions({
   auto: boolean;
   logo: { url: string; dots: number } | null;
 }) {
+  const { t } = useT();
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!auto) return;
-    const t = setTimeout(() => window.print(), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(timer);
   }, [auto]);
 
   async function bluetooth() {
@@ -109,11 +111,11 @@ export default function ReceiptActions({
     setStatus(null);
     try {
       const name = await printBluetooth(lines, logo);
-      setStatus({ ok: true, text: `Terkirim ke ${name}.` });
+      setStatus({ ok: true, text: t("Terkirim ke {name}.", { name }) });
     } catch (e) {
       cached = null;
       const msg = e instanceof Error ? e.message : String(e);
-      setStatus({ ok: false, text: /cancel/i.test(msg) ? "Pemilihan printer dibatalkan." : msg });
+      setStatus({ ok: false, text: /cancel/i.test(msg) ? t("Pemilihan printer dibatalkan.") : t(msg) });
     } finally {
       setBusy(false);
     }
@@ -123,22 +125,22 @@ export default function ReceiptActions({
     <div className="mb-4 print:hidden">
       <div className="flex flex-wrap justify-center gap-2">
         <button type="button" className="btn" onClick={() => window.print()}>
-          Cetak
+          {t("Cetak")}
         </button>
         <button type="button" className="btn-secondary" onClick={bluetooth} disabled={busy}>
-          {busy ? "Mengirim..." : "Cetak ke printer Bluetooth"}
+          {busy ? t("Mengirim...") : t("Cetak ke printer Bluetooth")}
         </button>
         <Link href="/kasir" className="btn-secondary">
-          Penjualan baru
+          {t("Penjualan baru")}
         </Link>
         <Link href={`/penjualan/${saleId}`} className="btn-secondary">
-          Detail nota
+          {t("Detail nota")}
         </Link>
       </div>
       {status && <p className={`mt-2 text-center text-sm ${status.ok ? "text-green-700" : "text-red-700"}`}>{status.text}</p>}
       <p className="mt-2 text-center text-xs text-neutral-500">
-        <b>Cetak</b>: untuk printer yang sudah terpasang di laptop/HP (USB, atau Bluetooth lewat aplikasi seperti RawBT). Pilih ukuran kertas 58/80 mm dan margin &quot;None&quot;.{" "}
-        <b>Bluetooth</b>: langsung ke printer thermal dari Chrome Android/laptop.
+        <b>{t("Cetak")}</b>: {t('untuk printer yang sudah terpasang di laptop/HP (USB, atau Bluetooth lewat aplikasi seperti RawBT). Pilih ukuran kertas 58/80 mm dan margin "None".')}{" "}
+        <b>Bluetooth</b>: {t("langsung ke printer thermal dari Chrome Android/laptop.")}
       </p>
     </div>
   );

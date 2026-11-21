@@ -7,6 +7,7 @@ import { str, type SP } from "@/components/ui";
 import ReceiptActions from "./ReceiptActions";
 import { logoUrl } from "@/lib/logo";
 import { logoDots } from "@/lib/escpos";
+import { getT } from "@/lib/i18n";
 
 export default async function StrukPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
   const { id } = await params;
@@ -19,7 +20,7 @@ export default async function StrukPage({ params, searchParams }: { params: Prom
   if (!sale || (!isAdmin(user) && sale.cashierId !== user.id)) notFound();
   const settings = await getReceiptSettings(user.businessId);
   const logoSrc = settings.showLogo !== "0" ? logoUrl(user.business) : null;
-  const lines = buildReceipt(sale, settings);
+  const lines = buildReceipt(sale, settings, await getT());
   const cols = receiptColumns(settings.paperWidth);
   return (
     <div>

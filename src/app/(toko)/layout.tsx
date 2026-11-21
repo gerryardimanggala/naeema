@@ -4,25 +4,30 @@ import { logout } from "./actions";
 import { MgPosLogo, StoreLogo } from "@/components/brand";
 import { ROLES } from "@/lib/constants";
 import NavLinks from "./NavLinks";
+import { getLang, getT } from "@/lib/i18n";
+import LangSwitch from "@/components/LangSwitch";
 
 export default async function TokoLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
+  const lang = await getLang();
+  const t = await getT();
   const links = user
     ? [
         ["/", "Ringkasan"],
         ["/kasir", "Kasir"],
         ["/penjualan", "Penjualan"],
         ["/kas", "Kas"],
+        ["/pengeluaran", "Pengeluaran"],
         ["/stok", "Stok"],
-        ["/event", "Event"],
+        ["/event", "Event|menu"],
         ...(isAdmin(user)
           ? [
-              ["/produk", "Produk"],
+              ["/produk", "Produk|menu"],
               ["/laporan", "Laporan"],
               ["/pengaturan", "Pengaturan"],
             ]
           : []),
-      ]
+      ].map(([href, label]) => [href, t(label)])
     : [];
   return (
     <>
@@ -36,10 +41,11 @@ export default async function TokoLayout({ children }: { children: React.ReactNo
             <form action={logout} className="flex shrink-0 items-center gap-1 text-xs text-neutral-500">
               <Link href="/akun" className="max-w-[8rem] truncate rounded-md px-2 py-1 hover:bg-neutral-100">
                 {user.name}
-                <span className="hidden sm:inline"> · {ROLES[user.role]}</span>
+                <span className="hidden sm:inline"> · {t(ROLES[user.role])}</span>
               </Link>
-              <button className="rounded-md px-2 py-1 hover:bg-neutral-100">Keluar</button>
+              <button className="rounded-md px-2 py-1 hover:bg-neutral-100">{t("Keluar")}</button>
             </form>
+            <LangSwitch lang={lang} className="shrink-0" />
           </div>
           <div className="mx-auto max-w-6xl px-3 pb-2 pt-1.5">
             <NavLinks links={links as [string, string][]} />
@@ -47,8 +53,9 @@ export default async function TokoLayout({ children }: { children: React.ReactNo
         </header>
       )}
       <main className="mx-auto max-w-6xl px-4 py-6 print:m-0 print:max-w-none print:p-0">{children}</main>
-      <footer className="py-6 text-center text-xs text-neutral-400 print:hidden">
+      <footer className="flex items-center justify-center gap-3 py-6 text-center text-xs text-neutral-400 print:hidden">
         <MgPosLogo size={16} withName className="opacity-60" />
+        {!user && <LangSwitch lang={lang} />}
       </footer>
     </>
   );
