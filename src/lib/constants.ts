@@ -29,7 +29,7 @@ export const MARKETPLACES: Record<string, string> = {
 export const PAYMENT_METHODS: Record<string, string> = {
   CASH: "Tunai",
   TRANSFER: "Transfer",
-  QR: "QR (QRIS / DuitNow / PayNow)",
+  QR: "QR / e-wallet (QRIS, Touch 'n Go, DuitNow, PayNow)",
   CARD: "Kartu",
   MARKETPLACE: "Saldo marketplace",
 };

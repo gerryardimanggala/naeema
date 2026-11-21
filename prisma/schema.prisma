@@ -171,17 +171,18 @@ model Payment {
 
 // Tempat uang berada: dompet seseorang, rekening bank, atau saldo marketplace.
 model Wallet {
-  id        Int        @id @default(autoincrement())
+  id        Int         @id @default(autoincrement())
   name      String
   kind      String // PERSON | BANK | MARKETPLACE
   ownerId   Int?
-  owner     User?      @relation(fields: [ownerId], references: [id])
+  owner     User?       @relation(fields: [ownerId], references: [id])
   currency  String
-  active    Boolean    @default(true)
+  active    Boolean     @default(true)
   payments  Payment[]
-  movesOut  CashMove[] @relation("CashFrom")
-  movesIn   CashMove[] @relation("CashTo")
-  createdAt DateTime   @default(now())
+  movesOut  CashMove[]  @relation("CashFrom")
+  movesIn   CashMove[]  @relation("CashTo")
+  qrs       PaymentQr[]
+  createdAt DateTime    @default(now())
 }
 
 // Semua perpindahan uang di luar penjualan.
@@ -227,4 +228,18 @@ model Session {
 model Setting {
   key   String @id
   value String
+}
+
+// Gambar QR statis untuk pembayaran (QRIS, Touch 'n Go, DuitNow, PayNow, dll.).
+model PaymentQr {
+  id        Int      @id @default(autoincrement())
+  name      String
+  currency  String // mata uang yang diterima QR ini
+  walletId  Int // uang dari QR ini masuk ke dompet/rekening mana
+  wallet    Wallet   @relation(fields: [walletId], references: [id])
+  image     Bytes
+  mimeType  String
+  note      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }

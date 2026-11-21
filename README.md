@@ -17,6 +17,9 @@ Aplikasi kasir, stok, dan kas untuk Naeema. Versi pertama (uji coba).
 - **Peran & login**: setiap orang masuk dengan nama + PIN (4-8 angka, disimpan sebagai hash).
   Akun dikunci 15 menit setelah 5 PIN salah. Owner/Admin melihat semua dan bisa mengganti PIN orang lain;
   Staf hanya input penjualan dan mengelola dompetnya sendiri.
+- **QR pembayaran**: simpan gambar QR statis (QRIS, Touch 'n Go, DuitNow, PayNow, dll.) di Pengaturan,
+  masing-masing terhubung ke dompet/rekening penerima. Di kasir, tombol "Bayar pakai QR" menampilkan QR layar penuh
+  beserta nominalnya (hanya QR yang sesuai mata uang penjualan), lalu mencatat uangnya masuk ke dompet QR tersebut.
 - **Cetak struk thermal** (58 mm atau 80 mm, kop toko diatur di Pengaturan):
   - *Cetak*: lewat dialog cetak browser, untuk printer yang terpasang di laptop/HP (USB, atau Bluetooth lewat aplikasi seperti RawBT di Android).
   - *Cetak ke printer Bluetooth*: kirim perintah ESC/POS langsung dari Chrome (Android/laptop) lewat Web Bluetooth. Tidak didukung Safari/iPhone.

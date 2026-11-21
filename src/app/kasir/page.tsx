@@ -9,7 +9,7 @@ export default async function KasirPage() {
   const user = await requireUser();
   const recent = new Date();
   recent.setDate(recent.getDate() - 7);
-  const [locations, events, variants, wallets, rates] = await Promise.all([
+  const [locations, events, variants, wallets, rates, qrs] = await Promise.all([
     db.location.findMany({ where: { active: true, type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
     db.event.findMany({ where: { endDate: { gte: recent } }, include: { location: true }, orderBy: { startDate: "asc" } }),
     db.variant.findMany({
@@ -19,6 +19,7 @@ export default async function KasirPage() {
     }),
     db.wallet.findMany({ where: { active: true }, include: { owner: true }, orderBy: { name: "asc" } }),
     latestRates(),
+    db.paymentQr.findMany({ where: { active: true }, select: { id: true, name: true, currency: true, walletId: true, note: true }, orderBy: { name: "asc" } }),
   ]);
   return (
     <div>
@@ -26,6 +27,7 @@ export default async function KasirPage() {
       <KasirForm
         userId={user.id}
         rates={rates}
+        qrs={qrs}
         locations={locations.map((l) => ({ id: l.id, name: l.name, type: l.type }))}
         events={events.filter((e) => e.location).map((e) => ({ id: e.id, name: e.name, currency: e.currency, locationId: e.location!.id, dates: `${fmtDate(e.startDate)} - ${fmtDate(e.endDate)}` }))}
         variants={variants.map((v) => ({
