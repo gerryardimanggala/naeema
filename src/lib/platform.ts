@@ -4,9 +4,9 @@ import { db } from "./db";
 
 export const SIGNUP_MODES = {
   OPEN: "Terbuka: siapa saja bisa daftar dan langsung pakai",
-  APPROVAL: "Perlu persetujuan: toko baru aktif setelah disetujui admin platform",
+  APPROVAL: "Perlu persetujuan: toko baru aktif setelah disetujui admin MG-POS",
   INVITE: "Pakai kode undangan: hanya yang punya kode bisa daftar",
-  CLOSED: "Ditutup: hanya admin platform yang bisa membuat toko",
+  CLOSED: "Ditutup: hanya admin MG-POS yang bisa membuat toko",
 } as const;
 export type SignupMode = keyof typeof SIGNUP_MODES;
 
@@ -26,9 +26,23 @@ export async function setPlatformSetting(key: string, value: string) {
 /** Buat bisnis beserta owner, lokasi, dompet, dan kategori awal. */
 export async function createBusinessWithOwner(
   tx: Prisma.TransactionClient,
-  input: { businessName: string; slug: string; ownerName: string; pinHash: string; pending?: boolean },
+  input: {
+    businessName: string;
+    slug: string;
+    ownerName: string;
+    pinHash: string;
+    pending?: boolean;
+    logo?: { bytes: Uint8Array<ArrayBuffer>; mime: string } | null;
+  },
 ) {
-  const b = await tx.business.create({ data: { name: input.businessName, slug: input.slug, pending: !!input.pending } });
+  const b = await tx.business.create({
+    data: {
+      name: input.businessName,
+      slug: input.slug,
+      pending: !!input.pending,
+      ...(input.logo ? { logo: input.logo.bytes, logoMime: input.logo.mime, logoAt: new Date() } : {}),
+    },
+  });
   const owner = await tx.user.create({
     data: { businessId: b.id, name: input.ownerName, role: "OWNER", pinHash: input.pinHash },
   });

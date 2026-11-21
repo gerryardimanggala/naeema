@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MG-POS">
+  <rect width="64" height="64" rx="14" fill="#111111"/>
+  <g fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 41V17l10 13 10-13v24"/>
+    <path d="M52.5 20.5A11.5 11.5 0 1 0 54.5 31H45"/>
+  </g>
+  <path d="M10 53 l4 -3 l4 3 l4 -3 l4 3 l4 -3 l4 3 l4 -3 l4 3 l4 -3 l4 3 l4 -3" fill="none" stroke="#F5A623" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

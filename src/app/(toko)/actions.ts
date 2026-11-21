@@ -16,6 +16,7 @@ import { formDate, startOfDay } from "@/lib/time";
 import { RECEIPT_KEYS } from "@/lib/receipt";
 import { normalizeSlug, slugProblem } from "@/lib/business";
 import { businessBlockReason, createBusinessWithOwner, getPlatformSettings } from "@/lib/platform";
+import { readLogo } from "@/lib/logo";
 
 // ---------- helpers ----------
 
@@ -152,11 +153,18 @@ export async function registerBusiness(fd: FormData) {
   if (pin !== text(fd, "pin2")) err("Kedua PIN tidak sama.");
   if (await db.business.findUnique({ where: { slug } })) err(`Kode toko "${slug}" sudah dipakai. Pilih kode lain.`);
 
+  let logo;
+  try {
+    logo = await readLogo(fd, true);
+  } catch (e) {
+    err(e instanceof Error ? e.message : "Logo tidak valid.");
+  }
+
   const pending = mode === "APPROVAL";
   let owner;
   try {
     ({ owner } = await db.$transaction((tx) =>
-      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending }),
+      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending, logo }),
     ));
   } catch (e) {
     console.error(e);
@@ -516,6 +524,7 @@ export async function saveReceiptSettings(fd: FormData) {
     for (const k of RECEIPT_KEYS) {
       let value = text(fd, k).slice(0, 200);
       if (k === "paperWidth") value = value === "80" ? "80" : "58";
+      if (k === "showLogo") value = fd.get("showLogo") === "on" ? "1" : "0";
       const key = `receipt.${k}`;
       await db.setting.upsert({
         where: { businessId_key: { businessId: me.businessId, key } },
@@ -580,11 +589,15 @@ export async function deletePaymentQr(fd: FormData) {
 
 export async function saveBusiness(fd: FormData) {
   const me = await requireAdmin();
-  await attempt("/pengaturan", "Nama bisnis disimpan.", async () => {
-    if (me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa mengganti nama bisnis.");
+  await attempt("/pengaturan", "Data bisnis disimpan.", async () => {
+    if (me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa mengganti nama dan logo bisnis.");
     const name = text(fd, "name");
     if (!name) throw new BusinessError("Nama bisnis wajib diisi.");
-    await db.business.update({ where: { id: me.businessId }, data: { name: name.slice(0, 80) } });
+    const logo = await readLogo(fd, false);
+    await db.business.update({
+      where: { id: me.businessId },
+      data: { name: name.slice(0, 80), ...(logo ? { logo: logo.bytes, logoMime: logo.mime, logoAt: new Date() } : {}) },
+    });
   });
 }
 

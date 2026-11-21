@@ -11,7 +11,7 @@ export const getCurrentUser = cache(async () => {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const session = await db.session.findUnique({ where: { token }, include: { user: { include: { business: true } } } });
+  const session = await db.session.findUnique({ where: { token }, include: { user: { include: { business: { omit: { logo: true } } } } } });
   if (!session || session.expiresAt < new Date() || !session.user.active || !session.user.business.active || session.user.business.pending) return null;
   return session.user;
 });
@@ -25,13 +25,6 @@ export async function requireUser() {
 export async function requireAdmin() {
   const user = await requireUser();
   if (user.role === "STAFF") redirect("/?error=akses");
-  return user;
-}
-
-/** Admin platform: mengatur semua toko dan akun. Tidak terikat ke data toko mana pun. */
-export async function requirePlatformAdmin() {
-  const user = await requireUser();
-  if (!user.platformAdmin) redirect("/?error=akses");
   return user;
 }
 

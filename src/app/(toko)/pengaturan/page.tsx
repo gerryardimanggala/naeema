@@ -5,6 +5,8 @@ import { CURRENCIES, LOCATION_TYPES, ROLES, WALLET_KINDS } from "@/lib/constants
 import { addRate, saveBusiness, saveCategory, createLocation, createPaymentQr, createUser, createWallet, deletePaymentQr, resetPin, saveReceiptSettings, togglePaymentQr, toggleUser, toggleWallet } from "../actions";
 import { getReceiptSettings } from "@/lib/settings";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { StoreLogo } from "@/components/brand";
+import { LOGO_ACCEPT } from "@/lib/logo";
 import { fmtDate } from "@/lib/time";
 
 export default async function PengaturanPage({ searchParams }: { searchParams: SP }) {
@@ -20,7 +22,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
   const receipt = await getReceiptSettings(bid);
   const qrs = await db.paymentQr.findMany({ where: { businessId: bid }, select: { id: true, name: true, currency: true, active: true, note: true, wallet: { select: { name: true } } }, orderBy: [{ currency: "asc" }, { name: "asc" }] });
   const [business, categories] = await Promise.all([
-    db.business.findUniqueOrThrow({ where: { id: bid } }),
+    db.business.findUniqueOrThrow({ where: { id: bid }, omit: { logo: true } }),
     db.category.findMany({ where: { businessId: bid }, include: { _count: { select: { products: true } } }, orderBy: { name: "asc" } }),
   ]);
   const latest = CURRENCIES.filter((c) => c !== "IDR").map((c) => rates.find((r) => r.currency === c));
@@ -30,10 +32,19 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Bisnis">
-          <form action={saveBusiness} className="flex flex-wrap items-end gap-2">
-            <div className="flex-1">
-              <label className="label">Nama bisnis</label>
-              <input name="name" defaultValue={business.name} className="input" required maxLength={80} disabled={me.role !== "OWNER"} />
+          <form action={saveBusiness} className="flex flex-wrap items-end gap-3">
+            <StoreLogo business={business} size={64} />
+            <div className="min-w-[10rem] flex-1 space-y-2">
+              <div>
+                <label className="label">Nama bisnis</label>
+                <input name="name" defaultValue={business.name} className="input" required maxLength={80} disabled={me.role !== "OWNER"} />
+              </div>
+              {me.role === "OWNER" && (
+                <div>
+                  <label className="label">{business.logoAt ? "Ganti logo" : "Unggah logo"} (PNG/JPG/WEBP, maks. 512 KB)</label>
+                  <input name="logo" type="file" accept={LOGO_ACCEPT} className="input" />
+                </div>
+              )}
             </div>
             {me.role === "OWNER" && <button className="btn">Simpan</button>}
           </form>
@@ -41,7 +52,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
             Kode toko: <b>{business.slug}</b>
           </p>
           <p className="mt-1 text-xs text-neutral-500">
-            Tim Anda memasukkan kode toko ini saat pertama kali masuk di perangkat baru. Nama bisnis tampil di menu atas dan di struk
+            Tim Anda memasukkan kode toko ini saat pertama kali masuk di perangkat baru. Logo dan nama bisnis tampil di halaman masuk, menu atas, dan struk
             (kalau nama toko di pengaturan struk dikosongkan).
           </p>
         </Card>
@@ -176,6 +187,10 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
               <label className="label">Pesan di bawah struk</label>
               <input name="footer" defaultValue={receipt.footer} className="input" />
             </div>
+            <label className="col-span-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="showLogo" defaultChecked={receipt.showLogo !== "0"} /> Cetak logo toko di atas struk
+              {!business.logoAt && <span className="text-xs text-neutral-500">(unggah logo dulu di bagian Bisnis)</span>}
+            </label>
             <button className="btn col-span-2">Simpan pengaturan struk</button>
           </form>
         </Card>

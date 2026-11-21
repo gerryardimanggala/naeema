@@ -10,6 +10,7 @@ export type ReceiptSettings = {
   phone: string;
   footer: string;
   paperWidth: "58" | "80";
+  showLogo: string; // "1" = cetak logo toko di atas struk
 };
 
 export const DEFAULT_RECEIPT: ReceiptSettings = {
@@ -18,6 +19,7 @@ export const DEFAULT_RECEIPT: ReceiptSettings = {
   phone: "",
   footer: "Terima kasih telah berbelanja",
   paperWidth: "58",
+  showLogo: "1",
 };
 
 export const RECEIPT_KEYS = Object.keys(DEFAULT_RECEIPT) as (keyof ReceiptSettings)[];

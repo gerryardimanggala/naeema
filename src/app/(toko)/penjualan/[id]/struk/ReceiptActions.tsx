@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { ReceiptLine } from "@/lib/receipt";
-import { receiptToEscPos } from "@/lib/escpos";
+import { receiptToEscPos, rgbaToRaster, type Raster } from "@/lib/escpos";
 
 // Layanan Bluetooth yang umum dipakai printer thermal murah (58/80 mm).
 const PRINTER_SERVICES = [
@@ -41,14 +41,39 @@ async function findWritable(device: Device): Promise<Char> {
   throw new Error("Printer tidak punya saluran tulis yang dikenali.");
 }
 
-async function printBluetooth(lines: ReceiptLine[]) {
+/** Muat logo, perkecil ke lebar titik printer, lalu ubah jadi raster hitam-putih. */
+async function loadLogo(url: string, dots: number): Promise<Raster> {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const width = Math.min(dots, img.naturalWidth) & ~7; // kelipatan 8
+  const height = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * width));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, width, height);
+  return rgbaToRaster(ctx.getImageData(0, 0, width, height).data, width, height);
+}
+
+async function printBluetooth(lines: ReceiptLine[], logo: { url: string; dots: number } | null) {
   const bt = (navigator as unknown as { bluetooth?: Bluetooth }).bluetooth;
   if (!bt) throw new Error("Browser ini tidak mendukung Bluetooth. Pakai Chrome di Android atau laptop, atau tombol Cetak biasa.");
   if (!cached || !cached.device.gatt?.connected) {
     const device = cached?.device ?? (await bt.requestDevice({ acceptAllDevices: true, optionalServices: PRINTER_SERVICES }));
     cached = { device, char: await findWritable(device) };
   }
-  const data = receiptToEscPos(lines);
+  let raster: Raster | null = null;
+  if (logo) {
+    try {
+      raster = await loadLogo(logo.url, logo.dots);
+    } catch {
+      raster = null; // logo gagal dimuat: struk tetap dicetak tanpa logo
+    }
+  }
+  const data = receiptToEscPos(lines, raster);
   const { char } = cached;
   for (let i = 0; i < data.length; i += 180) {
     const chunk = data.slice(i, i + 180);
@@ -59,7 +84,17 @@ async function printBluetooth(lines: ReceiptLine[]) {
   return cached.device.name ?? "printer";
 }
 
-export default function ReceiptActions({ saleId, lines, auto }: { saleId: number; lines: ReceiptLine[]; auto: boolean }) {
+export default function ReceiptActions({
+  saleId,
+  lines,
+  auto,
+  logo,
+}: {
+  saleId: number;
+  lines: ReceiptLine[];
+  auto: boolean;
+  logo: { url: string; dots: number } | null;
+}) {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -73,7 +108,7 @@ export default function ReceiptActions({ saleId, lines, auto }: { saleId: number
     setBusy(true);
     setStatus(null);
     try {
-      const name = await printBluetooth(lines);
+      const name = await printBluetooth(lines, logo);
       setStatus({ ok: true, text: `Terkirim ke ${name}.` });
     } catch (e) {
       cached = null;

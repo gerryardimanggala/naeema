@@ -1,23 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requirePlatformAdmin } from "@/lib/session";
+import { requirePlatformAdmin } from "@/lib/admin-session";
 import { ROLES } from "@/lib/constants";
 import { fmtDate, fmtDateTime } from "@/lib/time";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { StoreLogo } from "@/components/brand";
+import { LOGO_ACCEPT } from "@/lib/logo";
 import {
-  adminCreateUser, adminResetPin, adminToggleUser, adminTogglePlatformAdmin, adminUnlockUser,
+  adminCreateUser, adminResetPin, adminToggleUser, adminUnlockUser,
   approveBusiness, renameBusiness, toggleBusiness,
 } from "../../actions";
 
 const pinProps = { type: "password", inputMode: "numeric", pattern: "[0-9]{4,8}", minLength: 4, maxLength: 8, autoComplete: "off", className: "input w-28" } as const;
 
 export default async function AdminTokoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
-  const me = await requirePlatformAdmin();
+  await requirePlatformAdmin();
   const { id } = await params;
   const sp = await searchParams;
   const business = await db.business.findUnique({
     where: { id: Number(id) || 0 },
+    omit: { logo: true },
     include: { users: { orderBy: [{ active: "desc" }, { name: "asc" }] } },
   });
   if (!business) notFound();
@@ -48,11 +51,18 @@ export default async function AdminTokoPage({ params, searchParams }: { params: 
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <Card title="Toko">
-          <form action={renameBusiness} className="mb-3 flex items-end gap-2">
+          <form action={renameBusiness} className="mb-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="id" value={business.id} />
-            <div className="flex-1">
-              <label className="label">Nama toko</label>
-              <input name="name" defaultValue={business.name} className="input" required maxLength={80} />
+            <StoreLogo business={business} size={56} />
+            <div className="min-w-[10rem] flex-1 space-y-2">
+              <div>
+                <label className="label">Nama toko</label>
+                <input name="name" defaultValue={business.name} className="input" required maxLength={80} />
+              </div>
+              <div>
+                <label className="label">Ganti logo (opsional)</label>
+                <input name="logo" type="file" accept={LOGO_ACCEPT} className="input" />
+              </div>
             </div>
             <button className="btn-secondary">Simpan</button>
           </form>
@@ -68,9 +78,7 @@ export default async function AdminTokoPage({ params, searchParams }: { params: 
             <form action={toggleBusiness} className="flex items-center gap-3">
               <input type="hidden" name="id" value={business.id} />
               <span className="text-sm">Status: <b>{business.active ? "Aktif" : "Nonaktif"}</b></span>
-              {business.id !== me.businessId && (
-                <button className={business.active ? "btn-danger" : "btn"}>{business.active ? "Nonaktifkan toko" : "Aktifkan lagi"}</button>
-              )}
+              <button className={business.active ? "btn-danger" : "btn"}>{business.active ? "Nonaktifkan toko" : "Aktifkan lagi"}</button>
             </form>
           )}
           <p className="mt-2 text-xs text-neutral-500">Toko nonaktif tidak bisa dipakai masuk, dan semua penggunanya langsung keluar. Datanya tetap tersimpan.</p>
@@ -122,7 +130,6 @@ export default async function AdminTokoPage({ params, searchParams }: { params: 
                   <tr key={u.id} className={u.active ? "" : "text-neutral-400"}>
                     <td>
                       {u.name}
-                      {u.platformAdmin && <span className="badge ml-2 bg-neutral-900 text-white">Admin platform</span>}
                     </td>
                     <td>{ROLES[u.role]}</td>
                     <td>
@@ -144,18 +151,10 @@ export default async function AdminTokoPage({ params, searchParams }: { params: 
                           <button className="underline">buka kunci</button>
                         </form>
                       )}
-                      {u.id !== me.id && (
-                        <>
-                          <form action={adminToggleUser}>
-                            {hidden(u.id)}
-                            <button className="underline">{u.active ? "nonaktifkan" : "aktifkan"}</button>
-                          </form>
-                          <form action={adminTogglePlatformAdmin}>
-                            {hidden(u.id)}
-                            <button className="underline">{u.platformAdmin ? "cabut admin platform" : "jadikan admin platform"}</button>
-                          </form>
-                        </>
-                      )}
+                      <form action={adminToggleUser}>
+                        {hidden(u.id)}
+                        <button className="underline">{u.active ? "nonaktifkan" : "aktifkan"}</button>
+                      </form>
                     </td>
                   </tr>
                 );
@@ -164,7 +163,7 @@ export default async function AdminTokoPage({ params, searchParams }: { params: 
           </table>
         </div>
         <p className="mt-2 text-xs text-neutral-500">
-          Mengganti PIN juga membuka kunci akun dan mengakhiri sesi login lama orang itu. Admin platform bisa mengatur semua toko lewat menu Admin.
+          Mengganti PIN juga membuka kunci akun dan mengakhiri sesi login lama orang itu.
         </p>
       </Card>
     </div>
