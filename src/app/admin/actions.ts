@@ -10,7 +10,10 @@ import { hashPin, verifyPin, newSessionToken, PIN_RULE, MAX_FAILED_LOGINS, LOCK_
 import { readLogo } from "@/lib/logo";
 import { BusinessError } from "@/lib/services";
 import { normalizeSlug, slugProblem } from "@/lib/business";
-import { SIGNUP_MODES, createBusinessWithOwner, setPlatformSetting } from "@/lib/platform";
+import { SIGNUP_MODES, createBusinessWithOwner, getSubSettings, setPlatformSetting } from "@/lib/platform";
+import { MONTH_CHOICES, SUB_KEYS, extendUntil, trialUntil } from "@/lib/subscription";
+import { endOfDay } from "@/lib/time";
+import { toMinor } from "@/lib/money";
 import { getT } from "@/lib/i18n";
 
 // ---------- masuk & keluar ----------
@@ -192,8 +195,9 @@ export async function adminCreateBusiness(fd: FormData) {
     if (!PIN_RULE.test(pin)) throw new BusinessError("PIN owner harus 4 sampai 8 angka.");
     if (await db.business.findUnique({ where: { slug } })) throw new BusinessError('Kode toko "{slug}" sudah dipakai.', { slug });
     const logo = await readLogo(fd, false);
+    const trial = trialUntil((await getSubSettings()).trialDays);
     await db.$transaction((tx) =>
-      createBusinessWithOwner(tx, { businessName, slug, ownerName, pinHash: hashPin(pin), logo, t }),
+      createBusinessWithOwner(tx, { businessName, slug, ownerName, pinHash: hashPin(pin), logo, t, paidUntil: trial }),
     );
   });
 }
@@ -203,7 +207,9 @@ export async function approveBusiness(fd: FormData) {
   await attempt("/admin", "Toko disetujui dan sudah bisa dipakai.", async () => {
     const b = await findBusiness(int(fd, "id"));
     if (!b.pending) throw new BusinessError("Toko ini tidak sedang menunggu persetujuan.");
-    await db.business.update({ where: { id: b.id }, data: { pending: false, active: true } });
+    // Masa coba gratis dimulai saat disetujui.
+    const paidUntil = b.paidUntil ?? (b.freePlan ? null : trialUntil((await getSubSettings()).trialDays));
+    await db.business.update({ where: { id: b.id }, data: { pending: false, active: true, paidUntil } });
   });
 }
 
@@ -217,6 +223,7 @@ export async function rejectBusiness(fd: FormData) {
     await db.$transaction(async (tx) => {
       const where = { businessId: b.id };
       await tx.session.deleteMany({ where: { user: where } });
+      await tx.subscriptionPayment.deleteMany({ where });
       await tx.paymentQr.deleteMany({ where });
       await tx.wallet.deleteMany({ where });
       await tx.stock.deleteMany({ where: { location: where } });
@@ -309,5 +316,71 @@ export async function adminToggleUser(fd: FormData) {
     const u = await findUser(int(fd, "id"));
     await db.user.update({ where: { id: u.id }, data: { active: !u.active } });
     if (u.active) await db.session.deleteMany({ where: { userId: u.id } });
+  });
+}
+
+// ---------- langganan ----------
+
+export async function saveSubscriptionSettings(fd: FormData) {
+  await requirePlatformAdmin();
+  await attempt("/admin", "Pengaturan langganan disimpan.", async () => {
+    const n = (key: string, max: number) => {
+      const v = Number(text(fd, key).replace(/\./g, ""));
+      if (!Number.isInteger(v) || v < 0 || v > max) throw new BusinessError("Angka tidak valid.");
+      return String(v);
+    };
+    await setPlatformSetting(SUB_KEYS.priceMonthly, n("priceMonthly", 1e9));
+    await setPlatformSetting(SUB_KEYS.trialDays, n("trialDays", 365));
+    await setPlatformSetting(SUB_KEYS.graceDays, n("graceDays", 60));
+    await setPlatformSetting(SUB_KEYS.payInfo, text(fd, "payInfo").slice(0, 500));
+  });
+}
+
+/** Catat pembayaran langganan dan perpanjang masa aktif toko. */
+export async function extendSubscription(fd: FormData) {
+  const admin = await requirePlatformAdmin();
+  const id = int(fd, "id");
+  await attempt(`/admin/toko/${id}`, "Langganan diperpanjang.", async () => {
+    const b = await findBusiness(id);
+    const months = int(fd, "months");
+    if (!MONTH_CHOICES.includes(months)) throw new BusinessError("Pilih lama perpanjangan.");
+    const raw = text(fd, "amount").replace(/\./g, "");
+    // Kosong = harga per bulan dikali lama perpanjangan.
+    const amount = raw ? toMinor(raw, "IDR") : (await getSubSettings()).priceMonthly * months;
+    if (!Number.isFinite(amount) || amount < 0) throw new BusinessError("Jumlah bayar tidak valid.");
+    const toDate = extendUntil(b.paidUntil, months);
+    await db.$transaction([
+      db.subscriptionPayment.create({
+        data: { businessId: id, months, amount, fromDate: b.paidUntil ?? new Date(), toDate, note: text(fd, "note").slice(0, 200) || null, adminId: admin.id },
+      }),
+      db.business.update({ where: { id }, data: { paidUntil: toDate, freePlan: false } }),
+    ]);
+  });
+}
+
+/** Atur tanggal habis langganan secara langsung, mis. untuk koreksi atau bonus. */
+export async function setSubscriptionDate(fd: FormData) {
+  const admin = await requirePlatformAdmin();
+  const id = int(fd, "id");
+  await attempt(`/admin/toko/${id}`, "Tanggal langganan diubah.", async () => {
+    const b = await findBusiness(id);
+    const day = text(fd, "until");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new BusinessError("Isi tanggal.");
+    const toDate = endOfDay(day);
+    await db.$transaction([
+      db.subscriptionPayment.create({
+        data: { businessId: id, months: 0, amount: 0, fromDate: b.paidUntil ?? new Date(), toDate, note: text(fd, "note").slice(0, 200) || null, adminId: admin.id },
+      }),
+      db.business.update({ where: { id }, data: { paidUntil: toDate } }),
+    ]);
+  });
+}
+
+export async function toggleFreePlan(fd: FormData) {
+  await requirePlatformAdmin();
+  const id = int(fd, "id");
+  await attempt(`/admin/toko/${id}`, "Status gratis diubah.", async () => {
+    const b = await findBusiness(id);
+    await db.business.update({ where: { id }, data: { freePlan: !b.freePlan } });
   });
 }

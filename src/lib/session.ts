@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db } from "./db";
+import { businessSubscription } from "./platform";
+import { isLocked } from "./subscription";
 
 export const SESSION_COOKIE = "naeema_session";
 /** Kode toko terakhir yang dipakai di perangkat ini, supaya halaman masuk langsung menampilkan tokonya. */
@@ -16,9 +18,11 @@ export const getCurrentUser = cache(async () => {
   return session.user;
 });
 
+/** Pengguna yang sudah masuk. Kalau langganan tokonya habis, diarahkan ke halaman langganan. */
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (isLocked(await businessSubscription(user.business))) redirect("/langganan");
   return user;
 }
 

@@ -296,28 +296,31 @@ model PaymentQr {
 
 // Satu bisnis/toko yang memakai aplikasi. Semua data lain milik tepat satu bisnis.
 model Business {
-  id         Int            @id @default(autoincrement())
-  name       String
-  slug       String         @unique // kode toko untuk login
-  active     Boolean        @default(true) // false = dinonaktifkan admin platform
-  pending    Boolean        @default(false) // true = pendaftaran menunggu persetujuan admin platform
-  logo       Bytes? // logo toko: tampil di halaman masuk, menu, dan struk
-  logoMime   String?
-  logoAt     DateTime? // waktu logo diganti, dipakai sebagai versi cache
-  createdAt  DateTime       @default(now())
-  users      User[]
-  products   Product[]
-  variants   Variant[]
-  categories Category[]
-  events     Event[]
-  locations  Location[]
-  sales      Sale[]
-  wallets    Wallet[]
-  cashMoves  CashMove[]
-  rates      ExchangeRate[]
-  settings   Setting[]
-  qrs        PaymentQr[]
-  stockMoves StockMove[]
+  id                   Int                   @id @default(autoincrement())
+  name                 String
+  slug                 String                @unique // kode toko untuk login
+  active               Boolean               @default(true) // false = dinonaktifkan admin platform
+  pending              Boolean               @default(false) // true = pendaftaran menunggu persetujuan admin platform
+  logo                 Bytes? // logo toko: tampil di halaman masuk, menu, dan struk
+  logoMime             String?
+  logoAt               DateTime? // waktu logo diganti, dipakai sebagai versi cache
+  paidUntil            DateTime? // langganan aktif sampai tanggal ini (akhir hari, WIB); null = belum pernah diatur
+  freePlan             Boolean               @default(false) // true = gratis tanpa batas waktu (mis. toko milik pengelola)
+  createdAt            DateTime              @default(now())
+  users                User[]
+  products             Product[]
+  variants             Variant[]
+  categories           Category[]
+  events               Event[]
+  locations            Location[]
+  sales                Sale[]
+  wallets              Wallet[]
+  cashMoves            CashMove[]
+  rates                ExchangeRate[]
+  settings             Setting[]
+  qrs                  PaymentQr[]
+  stockMoves           StockMove[]
+  subscriptionPayments SubscriptionPayment[]
 }
 
 model Category {
@@ -340,14 +343,32 @@ model PlatformSetting {
 
 /// Admin MG-POS: akun terpisah dari akun toko, mengatur semua toko.
 model PlatformAdmin {
-  id           Int            @id @default(autoincrement())
-  name         String         @unique
-  pinHash      String
-  active       Boolean        @default(true)
-  failedLogins Int            @default(0)
-  lockedUntil  DateTime?
-  createdAt    DateTime       @default(now())
-  sessions     AdminSession[]
+  id                   Int                   @id @default(autoincrement())
+  name                 String                @unique
+  pinHash              String
+  active               Boolean               @default(true)
+  failedLogins         Int                   @default(0)
+  lockedUntil          DateTime?
+  createdAt            DateTime              @default(now())
+  sessions             AdminSession[]
+  subscriptionPayments SubscriptionPayment[]
+}
+
+/// Catatan perpanjangan langganan yang dimasukkan admin MG-POS secara manual.
+model SubscriptionPayment {
+  id         Int           @id @default(autoincrement())
+  businessId Int
+  business   Business      @relation(fields: [businessId], references: [id])
+  months     Int // 0 = tanggal diatur manual
+  amount     Int // rupiah yang dibayar toko
+  fromDate   DateTime // masa aktif sebelum perpanjangan
+  toDate     DateTime // masa aktif baru
+  note       String?
+  adminId    Int
+  admin      PlatformAdmin @relation(fields: [adminId], references: [id])
+  createdAt  DateTime      @default(now())
+
+  @@index([businessId])
 }
 
 model AdminSession {

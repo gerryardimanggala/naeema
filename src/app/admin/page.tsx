@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePlatformAdmin } from "@/lib/admin-session";
-import { SIGNUP_MODES, getPlatformSettings } from "@/lib/platform";
+import { SIGNUP_MODES, getPlatformSettings, getSubSettings } from "@/lib/platform";
+import { subscriptionState } from "@/lib/subscription";
+import { subBadge } from "@/components/SubBadge";
+import { formatMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/time";
 import { Card, Flash, PageHeader, Stat, str, type SP } from "@/components/ui";
 import { StoreLogo } from "@/components/brand";
 import { LOGO_ACCEPT } from "@/lib/logo";
-import { adminCreateBusiness, approveBusiness, rejectBusiness, saveSignupSettings } from "./actions";
+import { adminCreateBusiness, approveBusiness, rejectBusiness, saveSignupSettings, saveSubscriptionSettings } from "./actions";
 import { getT } from "@/lib/i18n";
 import type { T } from "@/lib/i18n-core";
 
@@ -28,7 +31,7 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
   const sp = await searchParams;
   await requirePlatformAdmin();
   const q = (str(sp.q) || "").trim();
-  const [settings, businesses, owners, saleCounts, lastSales] = await Promise.all([
+  const [settings, businesses, owners, saleCounts, lastSales, sub] = await Promise.all([
     getPlatformSettings(),
     db.business.findMany({
       where: q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { slug: { contains: q.toLowerCase() } }] } : {},
@@ -39,7 +42,12 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
     db.user.findMany({ where: { role: "OWNER" }, select: { businessId: true, name: true }, orderBy: { id: "asc" } }),
     db.sale.groupBy({ by: ["businessId"], _count: true, where: { status: "PAID" } }),
     db.sale.groupBy({ by: ["businessId"], _max: { date: true } }),
+    getSubSettings(),
   ]);
+  const subOf = (b: { freePlan: boolean; paidUntil: Date | null }) => subscriptionState(b, sub.graceDays);
+  const needAttention = businesses
+    .filter((b) => b.active && !b.pending && ["expiring", "grace", "expired", "none"].includes(subOf(b).kind))
+    .sort((a, b) => (a.paidUntil?.getTime() ?? 0) - (b.paidUntil?.getTime() ?? 0));
   const ownerOf = new Map<number, string>();
   for (const o of owners) if (!ownerOf.has(o.businessId)) ownerOf.set(o.businessId, o.name);
   const sales = new Map(saleCounts.map((s) => [s.businessId, s._count]));
@@ -84,6 +92,21 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
         </Card>
       )}
 
+      {needAttention.length > 0 && (
+        <Card title={t("Langganan perlu diperpanjang ({n})", { n: needAttention.length })} className="mb-4">
+          <div className="divide-y divide-neutral-100">
+            {needAttention.map((b) => (
+              <Link key={b.id} href={`/admin/toko/${b.id}#langganan`} className="flex items-center gap-3 py-2 hover:bg-neutral-50">
+                <StoreLogo business={b} size={24} />
+                <span className="flex-1 font-medium">{b.name}</span>
+                <span className="text-xs text-neutral-500">{ownerOf.get(b.id) ?? "-"}</span>
+                {subBadge(subOf(b), t)}
+              </Link>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <Card title={t("Pendaftaran toko baru")}>
           <form action={saveSignupSettings} className="space-y-2">
@@ -100,6 +123,33 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
             <button className="btn">{t("Simpan")}</button>
           </form>
           <p className="mt-2 text-xs text-neutral-500">{t("Halaman pendaftaran: /daftar")}</p>
+        </Card>
+
+        <Card title={t("Langganan")}>
+          <form action={saveSubscriptionSettings} className="grid gap-2 sm:grid-cols-3">
+            <div>
+              <label className="label" htmlFor="priceMonthly">{t("Harga per bulan (Rp)")}</label>
+              <input id="priceMonthly" name="priceMonthly" inputMode="numeric" defaultValue={sub.priceMonthly} className="input" required />
+            </div>
+            <div>
+              <label className="label" htmlFor="trialDays">{t("Masa coba (hari)")}</label>
+              <input id="trialDays" name="trialDays" inputMode="numeric" defaultValue={sub.trialDays} className="input" required />
+            </div>
+            <div>
+              <label className="label" htmlFor="graceDays">{t("Masa tenggang (hari)")}</label>
+              <input id="graceDays" name="graceDays" inputMode="numeric" defaultValue={sub.graceDays} className="input" required />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="label" htmlFor="payInfo">{t("Cara bayar (tampil ke toko)")}</label>
+              <textarea id="payInfo" name="payInfo" defaultValue={sub.payInfo} rows={3} maxLength={500} className="input" placeholder={t("mis. Transfer ke BCA 123456 a.n. MG-POS, lalu kirim bukti ke WhatsApp 08xx")} />
+            </div>
+            <div className="sm:col-span-3">
+              <button className="btn">{t("Simpan")}</button>
+            </div>
+          </form>
+          <p className="mt-2 text-xs text-neutral-500">
+            {t("Toko baru gratis selama masa coba. Pengingat muncul 7 hari sebelum habis. Setelah habis ada masa tenggang, lalu toko terkunci sampai diperpanjang di halaman toko. Harga saat ini: {price}/bulan.", { price: formatMoney(sub.priceMonthly, "IDR") })}
+          </p>
         </Card>
 
         <Card title={t("Buat toko baru")}>
@@ -145,6 +195,7 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
                 <th>{t("Kode")}</th>
                 <th>{t("Owner")}</th>
                 <th>{t("Status")}</th>
+                <th>{t("Langganan")}</th>
                 <th className="num">{t("Pengguna")}</th>
                 <th className="num">{t("Penjualan")}</th>
                 <th>{t("Terakhir jual")}</th>
@@ -163,6 +214,7 @@ export default async function AdminPage({ searchParams }: { searchParams: SP }) 
                   <td>{b.slug}</td>
                   <td>{ownerOf.get(b.id) ?? "-"}</td>
                   <td>{status(b, t)}</td>
+                  <td>{b.pending ? "-" : subBadge(subOf(b), t)}</td>
                   <td className="num">{b._count.users}</td>
                   <td className="num">{sales.get(b.id) ?? 0}</td>
                   <td>{last.get(b.id) ? fmtDate(last.get(b.id)!) : "-"}</td>

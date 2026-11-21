@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { registerBusiness } from "../actions";
 import { Flash, str, type SP } from "@/components/ui";
-import { getPlatformSettings } from "@/lib/platform";
+import { getPlatformSettings, getSubSettings } from "@/lib/platform";
+import { formatMoney } from "@/lib/money";
 import { LOGO_ACCEPT } from "@/lib/logo";
 import { MgPosLogo } from "@/components/brand";
 import { getT } from "@/lib/i18n";
@@ -20,6 +21,7 @@ export default async function DaftarPage({ searchParams }: { searchParams: SP })
   const sp = await searchParams;
   if (await getCurrentUser()) redirect("/");
   const { mode } = await getPlatformSettings();
+  const sub = await getSubSettings();
   const needCode = mode === "INVITE";
   const ok = str(sp.ok);
   return (
@@ -28,6 +30,13 @@ export default async function DaftarPage({ searchParams }: { searchParams: SP })
         <MgPosLogo size={48} className="mb-3" />
         <div className="text-3xl font-black tracking-tight">{t("Daftar toko di MG-POS")}</div>
         <div className="mt-1 text-sm text-neutral-500">{t("Data setiap bisnis terpisah dan hanya bisa dilihat timnya sendiri.")}</div>
+        {sub.trialDays > 0 && (
+          <div className="mt-3 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-800">
+            {sub.priceMonthly > 0
+              ? t("Gratis {n} hari, lalu {price} per bulan", { n: sub.trialDays, price: formatMoney(sub.priceMonthly, "IDR") })
+              : t("Gratis {n} hari", { n: sub.trialDays })}
+          </div>
+        )}
       </div>
       <Flash ok={ok} error={str(sp.error)} />
       {mode === "CLOSED" || ok ? (

@@ -6,12 +6,19 @@ import { ROLES } from "@/lib/constants";
 import NavLinks from "./NavLinks";
 import { getLang, getT } from "@/lib/i18n";
 import LangSwitch from "@/components/LangSwitch";
+import { businessSubscription } from "@/lib/platform";
+import { isLocked } from "@/lib/subscription";
+import { fmtDate } from "@/lib/time";
 
 export default async function TokoLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   const lang = await getLang();
   const t = await getT();
-  const links = user
+  const sub = user ? await businessSubscription(user.business) : null;
+  const locked = !!sub && isLocked(sub);
+  const links = locked
+    ? [["/langganan", t("Langganan")]]
+    : user
     ? [
         ["/", "Ringkasan"],
         ["/kasir", "Kasir"],
@@ -25,6 +32,7 @@ export default async function TokoLayout({ children }: { children: React.ReactNo
               ["/produk", "Produk|menu"],
               ["/laporan", "Laporan"],
               ["/pengaturan", "Pengaturan"],
+              ...(sub?.kind === "free" ? [] : [["/langganan", "Langganan"]]),
             ]
           : []),
       ].map(([href, label]) => [href, t(label)])
@@ -51,6 +59,18 @@ export default async function TokoLayout({ children }: { children: React.ReactNo
             <NavLinks links={links as [string, string][]} />
           </div>
         </header>
+      )}
+      {sub && (sub.kind === "expiring" || sub.kind === "grace") && (
+        <div className={`print:hidden border-b px-4 py-2 text-center text-sm ${sub.kind === "grace" ? "border-red-200 bg-red-50 text-red-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+          {sub.kind === "grace"
+            ? t("Langganan toko habis pada {date}. Toko akan terkunci dalam {n} hari.", { date: fmtDate(sub.until), n: sub.graceLeft })
+            : sub.daysLeft === 0
+              ? t("Langganan toko habis hari ini.")
+              : t("Langganan toko habis dalam {n} hari ({date}).", { n: sub.daysLeft, date: fmtDate(sub.until) })}{" "}
+          <Link href="/langganan" className="font-medium underline">
+            {t("Cara perpanjang")}
+          </Link>
+        </div>
       )}
       <main className="mx-auto max-w-6xl px-4 py-6 print:m-0 print:max-w-none print:p-0">{children}</main>
       <footer className="flex items-center justify-center gap-3 py-6 text-center text-xs text-neutral-400 print:hidden">

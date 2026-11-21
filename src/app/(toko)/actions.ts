@@ -15,7 +15,8 @@ import { CURRENCIES } from "@/lib/constants";
 import { formDate, startOfDay } from "@/lib/time";
 import { RECEIPT_KEYS } from "@/lib/receipt";
 import { normalizeSlug, slugProblem } from "@/lib/business";
-import { businessBlockReason, createBusinessWithOwner, getPlatformSettings } from "@/lib/platform";
+import { businessBlockReason, createBusinessWithOwner, getPlatformSettings, getSubSettings } from "@/lib/platform";
+import { trialUntil } from "@/lib/subscription";
 import { readLogo } from "@/lib/logo";
 import { getT } from "@/lib/i18n";
 import type { Vars } from "@/lib/i18n-core";
@@ -180,10 +181,12 @@ export async function registerBusiness(fd: FormData) {
   }
 
   const pending = mode === "APPROVAL";
+  // Masa coba gratis dimulai saat toko bisa dipakai (langsung, atau setelah disetujui admin).
+  const trial = trialUntil((await getSubSettings()).trialDays);
   let owner;
   try {
     ({ owner } = await db.$transaction((tx) =>
-      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending, logo, t }),
+      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending, logo, t, paidUntil: pending ? undefined : trial }),
     ));
   } catch (e) {
     console.error(e);
