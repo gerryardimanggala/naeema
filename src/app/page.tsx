@@ -5,14 +5,15 @@ import { cashPosition } from "@/lib/reports";
 import { formatMoney } from "@/lib/money";
 import { CHANNELS, WALLET_KINDS } from "@/lib/constants";
 import { Card, Flash, PageHeader, Stat, str, type SP } from "@/components/ui";
+import { jakartaDay, startOfDay } from "@/lib/time";
 
 export default async function Home({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const user = await requireUser();
   const admin = isAdmin(user);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const todayStr = jakartaDay();
+  const today = startOfDay(todayStr);
+  const monthStart = startOfDay(todayStr.slice(0, 8) + "01");
 
   const [todaySales, monthByChannel, pending, position] = await Promise.all([
     db.sale.aggregate({ _sum: { totalIdr: true }, _count: true, where: { status: "PAID", date: { gte: today }, ...(admin ? {} : { cashierId: user.id }) } }),

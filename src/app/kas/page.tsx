@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { requireUser, isAdmin } from "@/lib/session";
-import { cashPosition, isoDate } from "@/lib/reports";
+import { cashPosition } from "@/lib/reports";
+import { fmtDate, jakartaDay } from "@/lib/time";
 import { formatMoney } from "@/lib/money";
 import { CASH_MOVE_TYPES, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { cashMoveAction, decideCashMoveAction } from "../actions";
@@ -46,7 +47,7 @@ export default async function KasPage({ searchParams }: { searchParams: SP }) {
     }),
   ]);
   const mine = admin ? wallets : wallets.filter((w) => w.ownerId === user.id);
-  const today = isoDate(new Date());
+  const today = jakartaDay();
 
   return (
     <div>
@@ -62,7 +63,7 @@ export default async function KasPage({ searchParams }: { searchParams: SP }) {
                   const canDecide = (admin || m.toWallet?.ownerId === user.id) && (m.createdById !== user.id || user.role === "OWNER");
                   return (
                     <tr key={m.id}>
-                      <td className="whitespace-nowrap">{m.date.toLocaleDateString("id-ID")}</td>
+                      <td className="whitespace-nowrap">{fmtDate(m.date)}</td>
                       <td>
                         {CASH_MOVE_TYPES[m.type]}: <b>{m.fromWallet?.name}</b> → <b>{m.toWallet?.name}</b>
                         <div className="text-xs text-neutral-500">
@@ -253,7 +254,7 @@ export default async function KasPage({ searchParams }: { searchParams: SP }) {
                   const cur = (m.fromWallet ?? m.toWallet)!.currency;
                   return (
                     <tr key={m.id} className={m.status === "REJECTED" ? "text-neutral-400" : ""}>
-                      <td className="whitespace-nowrap">{m.date.toLocaleDateString("id-ID")}</td>
+                      <td className="whitespace-nowrap">{fmtDate(m.date)}</td>
                       <td>
                         {CASH_MOVE_TYPES[m.type]}
                         {m.category && <div className="text-xs text-neutral-500">{EXPENSE_CATEGORIES[m.category]}</div>}

@@ -1,24 +1,27 @@
-// Jalankan: npm test  (memakai database terpisah prisma/test.db)
+// Jalankan: TEST_DATABASE_URL=postgresql://... npm test
+// Memakai database Postgres terpisah; SEMUA ISINYA DIHAPUS setiap tes berjalan.
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
-import { rmSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import {
   createSale, voidSale, receiveStock, transferStock, adjustStock, returnAllStock,
   createCashMove, decideCashMove, walletBalances, BusinessError,
 } from "../src/lib/services";
 
-process.env.DATABASE_URL = "file:./test.db";
-const db = new PrismaClient({ datasourceUrl: "file:./test.db" });
+const url = process.env.TEST_DATABASE_URL;
+if (!url) throw new Error("Isi TEST_DATABASE_URL dengan database Postgres khusus tes.");
+if (url === process.env.DATABASE_URL) throw new Error("TEST_DATABASE_URL tidak boleh sama dengan DATABASE_URL.");
+const db = new PrismaClient({ datasourceUrl: url });
 
 let owner: { id: number; role: string }, sari: { id: number; role: string };
 let gudang: number, kl: number, eventId: number, hijab: number;
 let sariMyr: number, sariIdr: number, bca: number;
 
 before(async () => {
-  rmSync("prisma/test.db", { force: true });
-  execSync("npx prisma db push --skip-generate", { env: { ...process.env, DATABASE_URL: "file:./test.db" }, stdio: "ignore" });
+  execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DATABASE_URL_UNPOOLED: url }, stdio: "ignore" });
+  const tables = await db.$queryRaw<{ tablename: string }[]>`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+  await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} RESTART IDENTITY CASCADE`);
   owner = await db.user.create({ data: { name: "Owner", role: "OWNER" } });
   sari = await db.user.create({ data: { name: "Sari", role: "STAFF" } });
   gudang = (await db.location.create({ data: { name: "Gudang", type: "WAREHOUSE" } })).id;
@@ -106,4 +109,19 @@ test("stock opname dan pengembalian sisa stok pameran", async () => {
   await returnAllStock(db, owner.id, kl, gudang);
   assert.equal(await qty(kl), 0);
   assert.equal(await qty(gudang), 97);
+});
+
+test("PIN disimpan sebagai hash dan diverifikasi", async () => {
+  const { hashPin, verifyPin } = await import("../src/lib/auth");
+  const h = hashPin("1234");
+  assert.ok(!h.includes("1234"));
+  assert.ok(verifyPin("1234", h));
+  assert.ok(!verifyPin("4321", h));
+  assert.ok(!verifyPin("1234", null));
+});
+
+test("nomor nota memakai tanggal Jakarta", async () => {
+  const { jakartaDay } = await import("../src/lib/time");
+  // 20 Nov 2026 pukul 20.00 UTC = 21 Nov 03.00 WIB
+  assert.equal(jakartaDay(new Date("2026-11-20T20:00:00Z")), "2026-11-21");
 });

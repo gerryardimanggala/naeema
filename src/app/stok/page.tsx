@@ -4,6 +4,7 @@ import { requireUser, isAdmin } from "@/lib/session";
 import { LOCATION_TYPES, STOCK_MOVE_TYPES } from "@/lib/constants";
 import { stockAdjustAction, stockInAction, stockTransferAction } from "../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { fmtDateTime } from "@/lib/time";
 
 export default async function StokPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
@@ -16,7 +17,7 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
     db.location.findMany({
       where: { active: true, OR: [{ type: { not: "EVENT" } }, { event: { endDate: { gte: recent } } }, { stocks: { some: { qty: { not: 0 } } } }] },
       include: { event: true },
-      orderBy: [{ type: "asc" }, { id: "asc" }],
+      orderBy: { id: "asc" },
     }),
     db.variant.findMany({ where: { active: true }, include: { product: true, stocks: true }, orderBy: [{ product: { name: "asc" } }, { sku: "asc" }] }),
   ]);
@@ -238,7 +239,7 @@ export default async function StokPage({ searchParams }: { searchParams: SP }) {
               <tbody>
                 {moves.map((m) => (
                   <tr key={m.id}>
-                    <td className="whitespace-nowrap">{m.createdAt.toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="whitespace-nowrap">{fmtDateTime(m.createdAt)}</td>
                     <td>
                       {STOCK_MOVE_TYPES[m.type]}
                       {m.sale && (

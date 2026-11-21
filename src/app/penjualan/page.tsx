@@ -5,6 +5,7 @@ import { dayRange, isoDate } from "@/lib/reports";
 import { formatMoney } from "@/lib/money";
 import { CHANNELS, MARKETPLACES } from "@/lib/constants";
 import { Card, Empty, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { fmtDateTime } from "@/lib/time";
 
 export default async function PenjualanPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
@@ -93,7 +94,7 @@ export default async function PenjualanPage({ searchParams }: { searchParams: SP
                     <td>
                       <Link href={`/penjualan/${s.id}`} className="font-medium underline">{s.number}</Link>
                     </td>
-                    <td className="whitespace-nowrap">{s.date.toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="whitespace-nowrap">{fmtDateTime(s.date)}</td>
                     <td>
                       {CHANNELS[s.channel]}
                       {s.marketplace && <div className="text-xs text-neutral-500">{MARKETPLACES[s.marketplace]}</div>}

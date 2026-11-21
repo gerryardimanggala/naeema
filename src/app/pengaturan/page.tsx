@@ -2,8 +2,9 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { formatRate } from "@/lib/money";
 import { CURRENCIES, LOCATION_TYPES, ROLES, WALLET_KINDS } from "@/lib/constants";
-import { addRate, createLocation, createUser, createWallet, toggleUser, toggleWallet } from "../actions";
+import { addRate, createLocation, createUser, createWallet, resetPin, toggleUser, toggleWallet } from "../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { fmtDate } from "@/lib/time";
 
 export default async function PengaturanPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
@@ -26,7 +27,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
               <div key={i} className="rounded-lg border border-neutral-200 p-3">
                 <div className="text-xs text-neutral-500">1 {r?.currency ?? CURRENCIES[i + 1]}</div>
                 <div className="text-lg font-semibold">{r ? `Rp ${formatRate(r.idrPerUnit)}` : "belum diisi"}</div>
-                {r && <div className="text-xs text-neutral-500">{r.date.toLocaleDateString("id-ID")}</div>}
+                {r && <div className="text-xs text-neutral-500">{fmtDate(r.date)}</div>}
               </div>
             ))}
           </div>
@@ -82,6 +83,15 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                 <tr key={u.id} className={u.active ? "" : "text-neutral-400"}>
                   <td>{u.name}</td>
                   <td>{ROLES[u.role]}</td>
+                  <td>
+                    {(u.role !== "OWNER" || me.role === "OWNER") && (
+                      <form action={resetPin} className="flex gap-1">
+                        <input type="hidden" name="id" value={u.id} />
+                        <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" maxLength={8} required placeholder="PIN baru" className="input w-24 px-2 py-1 text-xs" />
+                        <button className="text-xs underline">ganti PIN</button>
+                      </form>
+                    )}
+                  </td>
                   <td className="text-right">
                     {u.id !== me.id && (
                       <form action={toggleUser}>
@@ -106,6 +116,10 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
                   <option key={k} value={k}>{l}</option>
                 ))}
               </select>
+            </div>
+            <div className="col-span-2">
+              <label className="label">PIN awal (4-8 angka, beri tahu orangnya)</label>
+              <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" maxLength={8} required className="input" />
             </div>
             <div className="col-span-2 flex flex-wrap gap-3 text-sm">
               <span className="text-xs text-neutral-500">Buatkan dompet kas:</span>
