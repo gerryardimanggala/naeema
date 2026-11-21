@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { registerBusiness } from "../actions";
 import { Flash, str, type SP } from "@/components/ui";
+import { getPlatformSettings } from "@/lib/platform";
 
 export const metadata = { title: "Daftar bisnis baru" };
 
@@ -11,15 +12,25 @@ const pinProps = { type: "password", inputMode: "numeric", pattern: "[0-9]{4,8}"
 export default async function DaftarPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   if (await getCurrentUser()) redirect("/");
-  const needCode = !!process.env.SIGNUP_CODE;
+  const { mode } = await getPlatformSettings();
+  const needCode = mode === "INVITE";
+  const ok = str(sp.ok);
   return (
     <div className="mx-auto mt-12 max-w-sm">
       <div className="mb-6 text-center">
         <div className="text-3xl font-black tracking-tight">Daftar bisnis baru</div>
         <div className="mt-1 text-sm text-neutral-500">Data setiap bisnis terpisah dan hanya bisa dilihat timnya sendiri.</div>
       </div>
-      <Flash error={str(sp.error)} />
+      <Flash ok={ok} error={str(sp.error)} />
+      {mode === "CLOSED" || ok ? (
+        <div className="card text-sm text-neutral-600">
+          {ok ? "Kami akan mengaktifkan toko Anda setelah diperiksa." : "Pendaftaran toko baru sedang ditutup. Hubungi admin untuk dibuatkan akun toko."}
+        </div>
+      ) : (
       <form action={registerBusiness} className="card space-y-3">
+        {mode === "APPROVAL" && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">Toko baru aktif setelah disetujui admin.</p>
+        )}
         <div>
           <label className="label" htmlFor="businessName">Nama bisnis</label>
           <input id="businessName" name="businessName" className="input" required maxLength={80} placeholder="mis. Toko Ani Hijab" />
@@ -48,8 +59,9 @@ export default async function DaftarPage({ searchParams }: { searchParams: SP })
             <input id="signupCode" name="signupCode" className="input" required autoComplete="off" />
           </div>
         )}
-        <button className="btn w-full">Daftar & masuk</button>
+        <button className="btn w-full">{mode === "APPROVAL" ? "Kirim pendaftaran" : "Daftar & masuk"}</button>
       </form>
+      )}
       <p className="mt-4 text-center text-sm text-neutral-500">
         Sudah punya akun?{" "}
         <Link href="/masuk" className="font-medium text-neutral-900 underline">

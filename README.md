@@ -8,7 +8,10 @@ Aplikasi kasir, stok, dan kas. Dibuat untuk Naeema, dan bisa dipakai banyak bisn
   Semua data (produk, stok, penjualan, kas, QR, pengaturan) terpisah per bisnis; pengguna hanya bisa melihat
   data bisnisnya sendiri. Saat masuk di perangkat baru, isi kode toko dulu, lalu pilih nama dan PIN.
   Tautan langsung: `/masuk?toko=kode-toko`. Kategori produk dan nama bisnis diatur sendiri di Pengaturan.
-  Isi variabel `SIGNUP_CODE` di Vercel kalau pendaftaran hanya boleh untuk orang yang diberi kode undangan.
+- **Admin platform** (menu Admin, di atas semua toko): atur mode pendaftaran (terbuka, perlu persetujuan,
+  kode undangan, atau ditutup), setujui/tolak pendaftaran, buat toko, nonaktifkan toko, ganti nama toko,
+  serta kelola akun di toko mana pun (ganti PIN, buka kunci, aktif/nonaktif, angkat admin platform lain).
+  Owner toko `naeema` otomatis menjadi admin platform pertama.
 
 - **Kasir**: penjualan dari toko offline, marketplace (Shopee, Tokopedia, TikTok Shop, Lazada), atau pameran/event.
   Mata uang IDR (default), MYR, SGD. Kurs ke IDR dikunci di setiap nota. Setiap pembayaran dicatat masuk ke dompet siapa.

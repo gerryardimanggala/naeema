@@ -15,6 +15,7 @@ import { CURRENCIES } from "@/lib/constants";
 import { formDate, startOfDay } from "@/lib/time";
 import { RECEIPT_KEYS } from "@/lib/receipt";
 import { normalizeSlug, slugProblem } from "@/lib/business";
+import { businessBlockReason, createBusinessWithOwner, getPlatformSettings } from "@/lib/platform";
 
 // ---------- helpers ----------
 
@@ -89,8 +90,10 @@ async function rememberStore(slug: string) {
 /** Langkah pertama masuk: pilih toko lewat kode toko. */
 export async function chooseStore(fd: FormData) {
   const slug = normalizeSlug(text(fd, "store"));
-  const business = slug ? await db.business.findFirst({ where: { slug, active: true } }) : null;
+  const business = slug ? await db.business.findUnique({ where: { slug } }) : null;
   if (!business) loginError("Kode toko tidak ditemukan. Cek lagi ejaannya, atau daftarkan bisnis baru.");
+  const blocked = businessBlockReason(business);
+  if (blocked) loginError(blocked);
   await rememberStore(business.slug);
   redirect("/masuk");
 }
@@ -104,7 +107,7 @@ export async function login(fd: FormData) {
   const id = int(fd, "userId");
   const pin = text(fd, "pin");
   const slug = normalizeSlug(text(fd, "store"));
-  const user = await db.user.findFirst({ where: { id, active: true, business: { slug, active: true } } });
+  const user = await db.user.findFirst({ where: { id, active: true, business: { slug, active: true, pending: false } } });
   if (!user) loginError("Pengguna tidak ditemukan.");
   if (user.lockedUntil && user.lockedUntil > new Date())
     loginError(`Terlalu banyak PIN salah. Coba lagi setelah ${user.lockedUntil.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB, atau minta admin mengganti PIN.`);
@@ -134,12 +137,13 @@ export async function logout() {
 /** Daftarkan bisnis baru beserta akun owner-nya. */
 export async function registerBusiness(fd: FormData) {
   const err: (m: string) => never = (m) => loginError(m, "/daftar");
-  const businessName = text(fd, "businessName");
+  const { mode, code } = await getPlatformSettings();
+  if (mode === "CLOSED") err("Pendaftaran toko baru sedang ditutup. Hubungi admin.");
+  if (mode === "INVITE" && (!code || text(fd, "signupCode") !== code)) err("Kode undangan salah.");
+  const businessName = text(fd, "businessName").slice(0, 80);
   const slug = normalizeSlug(text(fd, "store"));
   const name = text(fd, "name");
   const pin = text(fd, "pin");
-  const required = process.env.SIGNUP_CODE;
-  if (required && text(fd, "signupCode") !== required) err("Kode undangan salah.");
   if (!businessName) err("Nama bisnis wajib diisi.");
   const problem = slugProblem(slug);
   if (problem) err(problem);
@@ -148,32 +152,24 @@ export async function registerBusiness(fd: FormData) {
   if (pin !== text(fd, "pin2")) err("Kedua PIN tidak sama.");
   if (await db.business.findUnique({ where: { slug } })) err(`Kode toko "${slug}" sudah dipakai. Pilih kode lain.`);
 
+  const pending = mode === "APPROVAL";
   let owner;
   try {
-    owner = await db.$transaction(async (tx) => {
-      const b = await tx.business.create({ data: { name: businessName, slug } });
-      const u = await tx.user.create({ data: { businessId: b.id, name, role: "OWNER", pinHash: hashPin(pin) } });
-      await tx.location.createMany({
-        data: [
-          { businessId: b.id, name: "Gudang", type: "WAREHOUSE" },
-          { businessId: b.id, name: "Toko Offline", type: "STORE" },
-        ],
-      });
-      await tx.wallet.createMany({
-        data: [
-          { businessId: b.id, name: "Rekening Bank", kind: "BANK", currency: "IDR" },
-          { businessId: b.id, name: `Kas ${name}`, kind: "PERSON", ownerId: u.id, currency: "IDR" },
-        ],
-      });
-      await tx.category.create({ data: { businessId: b.id, name: "Umum" } });
-      return u;
-    });
+    ({ owner } = await db.$transaction((tx) =>
+      createBusinessWithOwner(tx, { businessName, slug, ownerName: name, pinHash: hashPin(pin), pending }),
+    ));
   } catch (e) {
     console.error(e);
     err("Gagal mendaftar. Mungkin kode toko baru saja dipakai orang lain. Coba lagi.");
   }
   if (!owner) err("Gagal mendaftar. Coba lagi.");
   await rememberStore(slug);
+  if (pending) {
+    redirect(
+      "/daftar?ok=" +
+        encodeURIComponent(`Pendaftaran "${businessName}" diterima dengan kode toko ${slug}. Anda bisa masuk setelah disetujui admin.`),
+    );
+  }
   await startSession(owner.id);
   redirect(
     "/pengaturan?ok=" +
