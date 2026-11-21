@@ -1,0 +1,210 @@
+// Skema database Naeema POS.
+// Semua nilai uang disimpan sebagai bilangan bulat dalam satuan terkecil
+// (IDR: rupiah, MYR/SGD: sen) supaya tidak ada error pembulatan.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  name      String
+  role      String     @default("STAFF") // OWNER | ADMIN | STAFF
+  active    Boolean    @default(true)
+  wallets   Wallet[]
+  sales     Sale[]
+  createdAt DateTime   @default(now())
+  stockMoves StockMove[]
+  cashMovesCreated   CashMove[] @relation("CashMoveCreatedBy")
+  cashMovesConfirmed CashMove[] @relation("CashMoveConfirmedBy")
+}
+
+model Product {
+  id        Int       @id @default(autoincrement())
+  name      String
+  category  String // HIJAB | MUKENA | MUKENA_TRAVELING | MANSET | SLEEVE | LAINNYA
+  active    Boolean   @default(true)
+  variants  Variant[]
+  createdAt DateTime  @default(now())
+}
+
+model Variant {
+  id         Int            @id @default(autoincrement())
+  productId  Int
+  product    Product        @relation(fields: [productId], references: [id])
+  sku        String         @unique
+  color      String?
+  size       String?
+  priceIdr   Int
+  active     Boolean        @default(true)
+  prices     VariantPrice[]
+  stocks     Stock[]
+  stockMoves StockMove[]
+  saleItems  SaleItem[]
+}
+
+// Harga resmi dalam mata uang lain (mis. untuk pameran di Malaysia/Singapura).
+model VariantPrice {
+  id        Int     @id @default(autoincrement())
+  variantId Int
+  variant   Variant @relation(fields: [variantId], references: [id])
+  currency  String
+  price     Int // satuan terkecil
+
+  @@unique([variantId, currency])
+}
+
+model Event {
+  id        Int        @id @default(autoincrement())
+  name      String
+  city      String?
+  country   String // ID | MY | SG
+  startDate DateTime
+  endDate   DateTime
+  currency  String
+  notes     String?
+  location  Location?
+  sales     Sale[]
+  cashMoves CashMove[]
+  createdAt DateTime   @default(now())
+}
+
+model Location {
+  id        Int         @id @default(autoincrement())
+  name      String
+  type      String // WAREHOUSE | STORE | EVENT | MARKETPLACE
+  eventId   Int?        @unique
+  event     Event?      @relation(fields: [eventId], references: [id])
+  active    Boolean     @default(true)
+  stocks    Stock[]
+  movesFrom StockMove[] @relation("MoveFrom")
+  movesTo   StockMove[] @relation("MoveTo")
+  sales     Sale[]
+}
+
+model Stock {
+  variantId  Int
+  variant    Variant  @relation(fields: [variantId], references: [id])
+  locationId Int
+  location   Location @relation(fields: [locationId], references: [id])
+  qty        Int      @default(0)
+
+  @@id([variantId, locationId])
+}
+
+model StockMove {
+  id             Int       @id @default(autoincrement())
+  type           String // IN | TRANSFER | SALE | VOID | ADJUST
+  variantId      Int
+  variant        Variant   @relation(fields: [variantId], references: [id])
+  fromLocationId Int?
+  fromLocation   Location? @relation("MoveFrom", fields: [fromLocationId], references: [id])
+  toLocationId   Int?
+  toLocation     Location? @relation("MoveTo", fields: [toLocationId], references: [id])
+  qty            Int
+  note           String?
+  saleId         Int?
+  sale           Sale?     @relation(fields: [saleId], references: [id])
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id])
+  createdAt      DateTime  @default(now())
+}
+
+model Sale {
+  id          Int         @id @default(autoincrement())
+  number      String      @unique
+  date        DateTime    @default(now())
+  channel     String // OFFLINE | MARKETPLACE | EVENT
+  marketplace String? // SHOPEE | TOKOPEDIA | TIKTOK | LAZADA | LAINNYA
+  externalRef String? // nomor pesanan marketplace
+  eventId     Int?
+  event       Event?      @relation(fields: [eventId], references: [id])
+  locationId  Int
+  location    Location    @relation(fields: [locationId], references: [id])
+  cashierId   Int
+  cashier     User        @relation(fields: [cashierId], references: [id])
+  currency    String
+  rateToIdr   Float // IDR per 1 unit mata uang, dikunci saat transaksi
+  subtotal    Int
+  discount    Int         @default(0)
+  total       Int
+  totalIdr    Int
+  status      String      @default("PAID") // PAID | VOID
+  note        String?
+  voidReason  String?
+  items       SaleItem[]
+  payments    Payment[]
+  stockMoves  StockMove[]
+  createdAt   DateTime    @default(now())
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  variantId Int
+  variant   Variant @relation(fields: [variantId], references: [id])
+  qty       Int
+  price     Int // harga satuan, mata uang penjualan
+}
+
+model Payment {
+  id       Int    @id @default(autoincrement())
+  saleId   Int
+  sale     Sale   @relation(fields: [saleId], references: [id])
+  method   String // CASH | TRANSFER | QR | CARD | MARKETPLACE
+  amount   Int // mata uang penjualan
+  walletId Int
+  wallet   Wallet @relation(fields: [walletId], references: [id])
+}
+
+// Tempat uang berada: dompet seseorang, rekening bank, atau saldo marketplace.
+model Wallet {
+  id        Int        @id @default(autoincrement())
+  name      String
+  kind      String // PERSON | BANK | MARKETPLACE
+  ownerId   Int?
+  owner     User?      @relation(fields: [ownerId], references: [id])
+  currency  String
+  active    Boolean    @default(true)
+  payments  Payment[]
+  movesOut  CashMove[] @relation("CashFrom")
+  movesIn   CashMove[] @relation("CashTo")
+  createdAt DateTime   @default(now())
+}
+
+// Semua perpindahan uang di luar penjualan.
+model CashMove {
+  id            Int       @id @default(autoincrement())
+  type          String // DEPOSIT | EXPENSE | EXCHANGE | TRANSFER | ADJUST
+  fromWalletId  Int?
+  fromWallet    Wallet?   @relation("CashFrom", fields: [fromWalletId], references: [id])
+  toWalletId    Int?
+  toWallet      Wallet?   @relation("CashTo", fields: [toWalletId], references: [id])
+  amount        Int // mata uang dompet asal (atau tujuan jika tidak ada asal)
+  toAmount      Int? // mata uang dompet tujuan, diisi bila beda mata uang
+  eventId       Int?
+  event         Event?    @relation(fields: [eventId], references: [id])
+  category      String? // untuk pengeluaran: BOOTH | TRANSPORT | MAKAN | AKOMODASI | LAINNYA
+  note          String?
+  status        String    @default("PENDING") // PENDING | CONFIRMED | REJECTED
+  createdById   Int
+  createdBy     User      @relation("CashMoveCreatedBy", fields: [createdById], references: [id])
+  confirmedById Int?
+  confirmedBy   User?     @relation("CashMoveConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt   DateTime?
+  date          DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+}
+
+model ExchangeRate {
+  id         Int      @id @default(autoincrement())
+  currency   String
+  idrPerUnit Float
+  date       DateTime @default(now())
+}

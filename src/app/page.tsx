@@ -1,103 +1,81 @@
-import Image from "next/image";
+import Link from "next/link";
+import { db } from "@/lib/db";
+import { requireUser, isAdmin } from "@/lib/session";
+import { cashPosition } from "@/lib/reports";
+import { formatMoney } from "@/lib/money";
+import { CHANNELS, WALLET_KINDS } from "@/lib/constants";
+import { Card, Flash, PageHeader, Stat, str, type SP } from "@/components/ui";
 
-export default function Home() {
+export default async function Home({ searchParams }: { searchParams: SP }) {
+  const sp = await searchParams;
+  const user = await requireUser();
+  const admin = isAdmin(user);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const [todaySales, monthByChannel, pending, position] = await Promise.all([
+    db.sale.aggregate({ _sum: { totalIdr: true }, _count: true, where: { status: "PAID", date: { gte: today }, ...(admin ? {} : { cashierId: user.id }) } }),
+    db.sale.groupBy({ by: ["channel"], _sum: { totalIdr: true }, where: { status: "PAID", date: { gte: monthStart } } }),
+    db.cashMove.count({ where: { status: "PENDING", ...(admin ? {} : { toWallet: { ownerId: user.id } }) } }),
+    cashPosition(admin ? {} : { ownerId: user.id }),
+  ]);
+  const monthTotal = monthByChannel.reduce((s, c) => s + (c._sum.totalIdr ?? 0), 0);
+  const personHeld = position.holders.filter((h) => h.kind === "PERSON").reduce((s, h) => s + h.totalIdr, 0);
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div>
+      <PageHeader title={`Halo, ${user.name}`} desc="Ringkasan hari ini dan posisi uang.">
+        <Link href="/kasir" className="btn">
+          + Penjualan baru
+        </Link>
+      </PageHeader>
+      <Flash ok={str(sp.ok)} error={sp.error === "akses" ? "Halaman itu hanya untuk admin." : str(sp.error)} />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label={admin ? "Penjualan hari ini" : "Penjualan saya hari ini"} value={formatMoney(todaySales._sum.totalIdr ?? 0, "IDR")} sub={`${todaySales._count} nota`} />
+        {admin && <Stat label="Penjualan bulan ini" value={formatMoney(monthTotal, "IDR")} sub={monthByChannel.map((c) => `${CHANNELS[c.channel]}: ${formatMoney(c._sum.totalIdr ?? 0, "IDR")}`).join(" · ") || "-"} />}
+        <Stat label={admin ? "Uang dipegang orang" : "Uang yang saya pegang"} value={formatMoney(personHeld, "IDR")} sub="setara rupiah, kurs terbaru" />
+        <Stat label="Setoran menunggu konfirmasi" value={pending} sub={pending ? <Link href="/kas" className="underline">Buka halaman kas</Link> : "Tidak ada"} />
+      </div>
+
+      <Card title={admin ? "Posisi uang per orang / rekening" : "Uang yang saya pegang"}>
+        <div className="overflow-x-auto">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Pemegang</th>
+                <th>Dompet</th>
+                <th className="num">Saldo</th>
+                <th className="num">Setara IDR</th>
+                <th className="num">Setoran belum dikonfirmasi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {position.holders.map((h) =>
+                h.rows.map((r, i) => (
+                  <tr key={r.wallet.id}>
+                    {i === 0 && (
+                      <td rowSpan={h.rows.length} className="font-medium">
+                        {h.label}
+                        <div className="text-xs font-normal text-neutral-500">{WALLET_KINDS[h.kind]}</div>
+                        {h.rows.length > 1 && <div className="text-xs font-normal text-neutral-500">Total ≈ {formatMoney(h.totalIdr, "IDR")}</div>}
+                      </td>
+                    )}
+                    <td>{r.wallet.name}</td>
+                    <td className={`num font-medium ${r.balance < 0 ? "text-red-700" : ""}`}>{formatMoney(r.balance, r.wallet.currency)}</td>
+                    <td className="num text-neutral-500">{r.wallet.currency === "IDR" ? "" : formatMoney(r.balanceIdr, "IDR")}</td>
+                    <td className="num text-amber-700">{r.pendingOut ? formatMoney(r.pendingOut, r.wallet.currency) : ""}</td>
+                  </tr>
+                )),
+              )}
+            </tbody>
+          </table>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <p className="mt-3 text-xs text-neutral-500">
+          Saldo = uang diterima dari penjualan + uang masuk − pengeluaran − setoran yang sudah dikonfirmasi.
+        </p>
+      </Card>
     </div>
   );
 }

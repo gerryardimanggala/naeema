@@ -1,0 +1,9 @@
+{
+  "name": "Naeema POS",
+  "short_name": "Naeema",
+  "start_url": "/kasir",
+  "display": "standalone",
+  "background_color": "#f6f5f3",
+  "theme_color": "#111111",
+  "icons": []
+}

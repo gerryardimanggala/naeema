@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Naeema POS
 
-## Getting Started
+Aplikasi kasir, stok, dan kas untuk Naeema. Versi pertama (uji coba).
 
-First, run the development server:
+## Fitur
+
+- **Kasir**: penjualan dari toko offline, marketplace (Shopee, Tokopedia, TikTok Shop, Lazada), atau pameran/event.
+  Mata uang IDR (default), MYR, SGD. Kurs ke IDR dikunci di setiap nota. Setiap pembayaran dicatat masuk ke dompet siapa.
+- **Produk & stok**: produk per kategori, varian warna/ukuran, harga IDR + harga resmi MYR/SGD.
+  Stok per lokasi (gudang, toko, booth pameran), barang masuk, pindah lokasi, stock opname, riwayat mutasi.
+- **Event**: nama, kota, negara, tanggal, mata uang. Lokasi stok booth dibuat otomatis.
+  Laporan event: penjualan, pengeluaran, stok dibawa/terjual/sisa, uang masuk ke siapa, pengembalian sisa stok.
+- **Kas per orang**: saldo tiap dompet (orang, rekening, saldo marketplace) per mata uang.
+  Setoran dan serah terima uang menunggu konfirmasi penerima; pengeluaran dan tukar valas dicatat dengan kurs sebenarnya.
+- **Laporan**: penjualan per sumber, marketplace, event, mata uang, kategori, kasir; rekonsiliasi uang per orang;
+  produk terlaris; unduh CSV penjualan.
+- **Peran**: Owner/Admin melihat semua; Staf hanya input penjualan dan mengelola dompetnya sendiri.
+
+## Menjalankan di komputer
+
+Butuh Node.js 20+.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env        # DATABASE_URL="file:./dev.db"
+npx prisma migrate deploy
+npm run db:seed             # data contoh (opsional)
+npm run dev                 # buka http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Tes logika inti: `npm test`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cara uang dihitung
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Semua nilai disimpan dalam satuan terkecil (rupiah, sen). Saldo dompet =
+uang dari penjualan + uang masuk terkonfirmasi − uang keluar terkonfirmasi.
+Setoran yang belum dikonfirmasi tampil terpisah dan belum mengurangi saldo.
 
-## Learn More
+## Belum ada di versi ini
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Login dengan password/PIN (sekarang cukup pilih nama).
+- Mode offline penuh untuk booth tanpa internet.
+- Impor pesanan marketplace dari file CSV/Excel dan sinkron stok otomatis.
+- Cetak struk.
+- Database online (Postgres) untuk dipakai banyak perangkat sekaligus. Sekarang SQLite, cocok untuk uji coba.
