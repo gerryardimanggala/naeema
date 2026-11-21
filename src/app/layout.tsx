@@ -36,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="id">
       <body className="min-h-screen antialiased">
         {user && (
-          <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
+          <header className="print:hidden sticky top-0 z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-2">
               <Link href="/" className="text-lg font-black tracking-tight">
                 Naeema
@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </header>
         )}
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 py-6 print:m-0 print:max-w-none print:p-0">{children}</main>
       </body>
     </html>
   );

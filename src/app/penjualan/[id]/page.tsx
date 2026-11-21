@@ -20,6 +20,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   return (
     <div className="max-w-2xl">
       <PageHeader title={`Nota ${sale.number}`} desc={fmtDateTime(sale.date, "full")}>
+        <Link href={`/penjualan/${sale.id}/struk`} className="btn">Cetak struk</Link>
         <Link href="/penjualan" className="btn-secondary">Kembali</Link>
       </PageHeader>
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
