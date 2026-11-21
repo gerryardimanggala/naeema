@@ -49,10 +49,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 ))}
               </nav>
               <form action={logout} className="flex items-center gap-2 text-xs text-neutral-500">
-                <span className="hidden sm:inline">
+                <Link href="/akun" className="hidden rounded-md px-2 py-1 hover:bg-neutral-100 sm:inline">
                   {user.name} · {ROLES[user.role]}
-                </span>
-                <button className="rounded-md px-2 py-1 hover:bg-neutral-100">Ganti</button>
+                </Link>
+                <button className="rounded-md px-2 py-1 hover:bg-neutral-100">Keluar</button>
               </form>
             </div>
           </header>

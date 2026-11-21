@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { walletBalances } from "./services";
 import { toIdr } from "./money";
+import { endOfDay, jakartaDay, startOfDay } from "./time";
 
 export async function latestRates() {
   const rates = await db.exchangeRate.findMany({ orderBy: { date: "desc" } });
@@ -38,12 +39,12 @@ export async function cashPosition(opts: { ownerId?: number } = {}) {
 }
 
 export function dayRange(from?: string, to?: string) {
-  const start = from ? new Date(from + "T00:00:00") : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const end = to ? new Date(to + "T23:59:59.999") : new Date();
+  const today = jakartaDay();
+  const start = startOfDay(from || today.slice(0, 8) + "01");
+  const end = endOfDay(to || today);
   return { start, end };
 }
 
 export function isoDate(d: Date) {
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  return jakartaDay(d);
 }

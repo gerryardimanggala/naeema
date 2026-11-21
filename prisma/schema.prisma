@@ -7,21 +7,27 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Koneksi langsung (tanpa pooler) untuk migrasi. Di Vercel + Neon terisi otomatis.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  name      String
-  role      String     @default("STAFF") // OWNER | ADMIN | STAFF
-  active    Boolean    @default(true)
-  wallets   Wallet[]
-  sales     Sale[]
-  createdAt DateTime   @default(now())
-  stockMoves StockMove[]
-  cashMovesCreated   CashMove[] @relation("CashMoveCreatedBy")
-  cashMovesConfirmed CashMove[] @relation("CashMoveConfirmedBy")
+  id                 Int         @id @default(autoincrement())
+  name               String
+  role               String      @default("STAFF") // OWNER | ADMIN | STAFF
+  active             Boolean     @default(true)
+  pinHash            String?
+  failedLogins       Int         @default(0)
+  lockedUntil        DateTime?
+  sessions           Session[]
+  wallets            Wallet[]
+  sales              Sale[]
+  createdAt          DateTime    @default(now())
+  stockMoves         StockMove[]
+  cashMovesCreated   CashMove[]  @relation("CashMoveCreatedBy")
+  cashMovesConfirmed CashMove[]  @relation("CashMoveConfirmedBy")
 }
 
 model Product {
@@ -207,4 +213,12 @@ model ExchangeRate {
   currency   String
   idrPerUnit Float
   date       DateTime @default(now())
+}
+
+model Session {
+  token     String   @id
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

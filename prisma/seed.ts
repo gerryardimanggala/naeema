@@ -1,5 +1,9 @@
 // Data contoh untuk uji coba. Jalankan: npm run db:seed
 import { PrismaClient } from "@prisma/client";
+import { hashPin } from "../src/lib/auth";
+
+// Semua akun contoh memakai PIN 1234. Jangan dipakai di database sungguhan.
+const pinHash = hashPin("1234");
 
 const db = new PrismaClient();
 
@@ -8,10 +12,10 @@ async function main() {
     console.log("Database sudah berisi data, seed dilewati.");
     return;
   }
-  const owner = await db.user.create({ data: { name: "Gerry", role: "OWNER" } });
-  const admin = await db.user.create({ data: { name: "Admin Keuangan", role: "ADMIN" } });
-  const tokoStaff = await db.user.create({ data: { name: "Staf Toko", role: "STAFF" } });
-  const eventStaff = await db.user.create({ data: { name: "Tim Pameran", role: "STAFF" } });
+  const owner = await db.user.create({ data: { name: "Gerry", role: "OWNER", pinHash } });
+  const admin = await db.user.create({ data: { name: "Admin Keuangan", role: "ADMIN", pinHash } });
+  const tokoStaff = await db.user.create({ data: { name: "Staf Toko", role: "STAFF", pinHash } });
+  const eventStaff = await db.user.create({ data: { name: "Tim Pameran", role: "STAFF", pinHash } });
 
   await db.wallet.createMany({
     data: [

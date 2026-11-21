@@ -4,13 +4,15 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { USER_COOKIE, requireUser, requireAdmin } from "@/lib/session";
+import { SESSION_COOKIE, requireUser, requireAdmin, getCurrentUser } from "@/lib/session";
+import { hashPin, verifyPin, newSessionToken, PIN_RULE, MAX_FAILED_LOGINS, LOCK_MINUTES, SESSION_DAYS } from "@/lib/auth";
 import {
   BusinessError, createSale, voidSale, receiveStock, transferStock, adjustStock, returnAllStock,
   createCashMove, decideCashMove, type SaleInput, type CashMoveInput,
 } from "@/lib/services";
 import { toMinor } from "@/lib/money";
 import { CURRENCIES } from "@/lib/constants";
+import { formDate, startOfDay } from "@/lib/time";
 
 // ---------- helpers ----------
 
@@ -54,17 +56,101 @@ async function attempt(path: string, okMsg: string, fn: () => Promise<unknown>) 
 
 // ---------- sesi ----------
 
+async function startSession(userId: number) {
+  const token = newSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 864e5);
+  await db.session.create({ data: { token, userId, expiresAt } });
+  await db.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+  (await cookies()).set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    expires: expiresAt,
+    path: "/",
+  });
+}
+
+function loginError(msg: string): never {
+  redirect("/masuk?error=" + encodeURIComponent(msg));
+}
+
 export async function login(fd: FormData) {
   const id = int(fd, "userId");
+  const pin = text(fd, "pin");
   const user = await db.user.findFirst({ where: { id, active: true } });
-  if (!user) redirect("/masuk?error=" + encodeURIComponent("Pengguna tidak ditemukan."));
-  (await cookies()).set(USER_COOKIE, String(user.id), { httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30, path: "/" });
+  if (!user) loginError("Pengguna tidak ditemukan.");
+  if (user.lockedUntil && user.lockedUntil > new Date())
+    loginError(`Terlalu banyak PIN salah. Coba lagi setelah ${user.lockedUntil.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB, atau minta admin mengganti PIN.`);
+  if (!user.pinHash) loginError("Akun ini belum punya PIN. Minta admin mengatur PIN di menu Pengaturan.");
+  if (!verifyPin(pin, user.pinHash)) {
+    const failed = user.failedLogins + 1;
+    const lock = failed >= MAX_FAILED_LOGINS;
+    await db.user.update({
+      where: { id: user.id },
+      data: { failedLogins: lock ? 0 : failed, lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60000) : null },
+    });
+    loginError(lock ? `PIN salah ${MAX_FAILED_LOGINS} kali. Akun dikunci ${LOCK_MINUTES} menit.` : `PIN salah. Sisa percobaan: ${MAX_FAILED_LOGINS - failed}.`);
+  }
+  await db.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
+  await startSession(user.id);
   redirect(user.role === "STAFF" ? "/kasir" : "/");
 }
 
 export async function logout() {
-  (await cookies()).delete(USER_COOKIE);
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) await db.session.deleteMany({ where: { token } });
+  store.delete(SESSION_COOKIE);
   redirect("/masuk");
+}
+
+/** Hanya bisa dipakai sekali, saat database masih kosong. */
+export async function setupOwner(fd: FormData) {
+  const name = text(fd, "name");
+  const pin = text(fd, "pin");
+  if (!name) loginError("Nama wajib diisi.");
+  if (!PIN_RULE.test(pin)) loginError("PIN harus 4 sampai 8 angka.");
+  if (pin !== text(fd, "pin2")) loginError("Kedua PIN tidak sama.");
+  const owner = await db.$transaction(async (tx) => {
+    if (await tx.user.count()) return null;
+    const u = await tx.user.create({ data: { name, role: "OWNER", pinHash: hashPin(pin) } });
+    await tx.location.createMany({ data: [{ name: "Gudang", type: "WAREHOUSE" }, { name: "Toko Offline", type: "STORE" }] });
+    await tx.wallet.createMany({
+      data: [
+        { name: "Rekening Bank Naeema", kind: "BANK", currency: "IDR" },
+        { name: `Kas ${name}`, kind: "PERSON", ownerId: u.id, currency: "IDR" },
+      ],
+    });
+    return u;
+  });
+  if (!owner) loginError("Akun owner sudah pernah dibuat. Silakan masuk.");
+  await startSession(owner.id);
+  redirect("/pengaturan?ok=" + encodeURIComponent("Akun owner dibuat. Lanjutkan dengan mengisi kurs, tim, dan dompet."));
+}
+
+export async function changeMyPin(fd: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/masuk");
+  await attempt("/akun", "PIN diganti.", async () => {
+    if (!verifyPin(text(fd, "oldPin"), user.pinHash)) throw new BusinessError("PIN lama salah.");
+    const pin = text(fd, "pin");
+    if (!PIN_RULE.test(pin)) throw new BusinessError("PIN baru harus 4 sampai 8 angka.");
+    if (pin !== text(fd, "pin2")) throw new BusinessError("Kedua PIN baru tidak sama.");
+    await db.user.update({ where: { id: user.id }, data: { pinHash: hashPin(pin) } });
+  });
+}
+
+export async function resetPin(fd: FormData) {
+  const me = await requireAdmin();
+  await attempt("/pengaturan", "PIN diganti. Sesi login lama orang itu sudah diakhiri.", async () => {
+    const id = int(fd, "id");
+    const target = await db.user.findUniqueOrThrow({ where: { id } });
+    if (target.role === "OWNER" && me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa mengganti PIN owner.");
+    const pin = text(fd, "pin");
+    if (!PIN_RULE.test(pin)) throw new BusinessError("PIN harus 4 sampai 8 angka.");
+    await db.user.update({ where: { id }, data: { pinHash: hashPin(pin), failedLogins: 0, lockedUntil: null } });
+    if (id !== me.id) await db.session.deleteMany({ where: { userId: id } });
+  });
 }
 
 // ---------- penjualan ----------
@@ -228,7 +314,7 @@ export async function createEvent(fd: FormData) {
     await db.event.create({
       data: {
         name, city: text(fd, "city") || null, country: text(fd, "country"), currency,
-        startDate: new Date(start), endDate: new Date(end), notes: text(fd, "notes") || null,
+        startDate: startOfDay(start), endDate: startOfDay(end), notes: text(fd, "notes") || null,
         location: { create: { name: `Booth ${name}`, type: "EVENT" } },
       },
     });
@@ -266,7 +352,7 @@ export async function cashMoveAction(fd: FormData) {
       eventId: int(fd, "eventId") || null,
       category: text(fd, "category") || null,
       note: text(fd, "note") || null,
-      date: text(fd, "date") ? new Date(text(fd, "date")) : undefined,
+      date: text(fd, "date") ? formDate(text(fd, "date")) : undefined,
     });
   });
 }
@@ -286,7 +372,9 @@ export async function createUser(fd: FormData) {
     const role = text(fd, "role");
     if (!name) throw new BusinessError("Nama wajib diisi.");
     if (role === "OWNER" && me.role !== "OWNER") throw new BusinessError("Hanya owner yang bisa menambah owner.");
-    const u = await db.user.create({ data: { name, role } });
+    const pin = text(fd, "pin");
+    if (!PIN_RULE.test(pin)) throw new BusinessError("PIN harus 4 sampai 8 angka.");
+    const u = await db.user.create({ data: { name, role, pinHash: hashPin(pin) } });
     const curs = CURRENCIES.filter((c) => fd.get(`wallet_${c}`) === "on");
     for (const c of curs) await db.wallet.create({ data: { name: `Kas ${name}${curs.length > 1 ? ` (${c})` : ""}`, kind: "PERSON", ownerId: u.id, currency: c } });
   });
@@ -299,6 +387,7 @@ export async function toggleUser(fd: FormData) {
     if (id === me.id) throw new BusinessError("Tidak bisa menonaktifkan diri sendiri.");
     const u = await db.user.findUniqueOrThrow({ where: { id } });
     await db.user.update({ where: { id }, data: { active: !u.active } });
+    if (u.active) await db.session.deleteMany({ where: { userId: id } });
   });
 }
 

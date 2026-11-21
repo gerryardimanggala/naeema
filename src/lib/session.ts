@@ -1,17 +1,18 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { db } from "./db";
 
-// Versi pertama: pengguna memilih namanya (belum ada password).
-// Login dengan PIN/password direncanakan sebelum dipakai di luar uji coba.
-export const USER_COOKIE = "naeema_user";
+export const SESSION_COOKIE = "naeema_session";
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const store = await cookies();
-  const id = Number(store.get(USER_COOKIE)?.value);
-  if (!id) return null;
-  return db.user.findFirst({ where: { id, active: true } });
-}
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const session = await db.session.findUnique({ where: { token }, include: { user: true } });
+  if (!session || session.expiresAt < new Date() || !session.user.active) return null;
+  return session.user;
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

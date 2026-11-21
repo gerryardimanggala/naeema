@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireUser, isAdmin } from "@/lib/session";
 import { formatMoney } from "@/lib/money";
+import { fmtDate } from "@/lib/time";
 import { COUNTRIES, CURRENCIES } from "@/lib/constants";
 import { createEvent } from "../actions";
 import { Card, Empty, Flash, PageHeader, str, type SP } from "@/components/ui";
@@ -84,7 +85,7 @@ export default async function EventPage({ searchParams }: { searchParams: SP }) 
                       <Link className="font-medium underline" href={`/event/${e.id}`}>{e.name}</Link>
                       <div className="text-xs text-neutral-500">{[e.city, COUNTRIES[e.country]].filter(Boolean).join(", ")} · {e.currency}</div>
                     </td>
-                    <td className="whitespace-nowrap">{e.startDate.toLocaleDateString("id-ID")} - {e.endDate.toLocaleDateString("id-ID")}</td>
+                    <td className="whitespace-nowrap">{fmtDate(e.startDate)} - {fmtDate(e.endDate)}</td>
                     <td className="num">{t?._count ?? 0}</td>
                     <td className="num">{formatMoney(t?._sum.total ?? 0, e.currency)}</td>
                     <td className="num">{formatMoney(t?._sum.totalIdr ?? 0, "IDR")}</td>

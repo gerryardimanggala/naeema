@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { dayRange, isoDate, cashPosition } from "@/lib/reports";
 import { formatMoney, fromMinor } from "@/lib/money";
+import { fmtDate } from "@/lib/time";
 import { CATEGORIES, CHANNELS, EXPENSE_CATEGORIES, MARKETPLACES } from "@/lib/constants";
 import { Card, PageHeader, str, type SP } from "@/components/ui";
 
@@ -82,7 +83,7 @@ export default async function LaporanPage({ searchParams }: { searchParams: SP }
   const qs = `from=${isoDate(start)}&to=${isoDate(end)}`;
   return (
     <div>
-      <PageHeader title="Laporan" desc={`${start.toLocaleDateString("id-ID")} - ${end.toLocaleDateString("id-ID")} · semua nilai disetarakan ke IDR dengan kurs saat transaksi`}>
+      <PageHeader title="Laporan" desc={`${fmtDate(start)} - ${fmtDate(end)} · semua nilai disetarakan ke IDR dengan kurs saat transaksi`}>
         <Link href={`/laporan/export?${qs}`} className="btn-secondary">Unduh CSV penjualan</Link>
       </PageHeader>
       <form className="card mb-4 flex flex-wrap items-end gap-3">

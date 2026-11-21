@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireUser, isAdmin } from "@/lib/session";
 import { formatMoney } from "@/lib/money";
+import { fmtDate, jakartaDay } from "@/lib/time";
 import { latestRates } from "@/lib/reports";
 import { toIdr } from "@/lib/money";
 import { COUNTRIES, EXPENSE_CATEGORIES } from "@/lib/constants";
@@ -47,10 +48,10 @@ export default async function EventDetail({ params, searchParams }: { params: Pr
     <div>
       <PageHeader
         title={ev.name}
-        desc={`${[ev.city, COUNTRIES[ev.country]].filter(Boolean).join(", ")} · ${ev.startDate.toLocaleDateString("id-ID")} - ${ev.endDate.toLocaleDateString("id-ID")} · ${ev.currency}`}
+        desc={`${[ev.city, COUNTRIES[ev.country]].filter(Boolean).join(", ")} · ${fmtDate(ev.startDate)} - ${fmtDate(ev.endDate)} · ${ev.currency}`}
       >
         <Link href={`/stok?tab=pindah`} className="btn-secondary">Kirim stok ke booth</Link>
-        <Link href={`/penjualan?eventId=${ev.id}&from=${ev.startDate.toISOString().slice(0, 10)}`} className="btn-secondary">Lihat nota</Link>
+        <Link href={`/penjualan?eventId=${ev.id}&from=${jakartaDay(ev.startDate)}`} className="btn-secondary">Lihat nota</Link>
       </PageHeader>
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
       {ev.notes && <p className="mb-4 text-sm text-neutral-600">{ev.notes}</p>}

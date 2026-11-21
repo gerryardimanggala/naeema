@@ -1,6 +1,7 @@
 // Logika bisnis inti. Sengaja tidak bergantung pada Next.js supaya bisa diuji langsung.
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { toIdr } from "./money";
+import { jakartaDay } from "./time";
 
 type Tx = Prisma.TransactionClient;
 type Db = PrismaClient;
@@ -127,7 +128,7 @@ export type SaleInput = {
 };
 
 async function nextSaleNumber(tx: Tx, date: Date) {
-  const ymd = date.toISOString().slice(0, 10).replace(/-/g, "");
+  const ymd = jakartaDay(date).replace(/-/g, "");
   const prefix = `NM-${ymd}-`;
   const last = await tx.sale.findFirst({ where: { number: { startsWith: prefix } }, orderBy: { number: "desc" } });
   const n = last ? Number(last.number.slice(prefix.length)) + 1 : 1;

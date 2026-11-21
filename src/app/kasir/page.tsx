@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { latestRates } from "@/lib/reports";
 import { PageHeader } from "@/components/ui";
 import KasirForm from "./KasirForm";
+import { fmtDate } from "@/lib/time";
 
 export default async function KasirPage() {
   const user = await requireUser();
@@ -26,7 +27,7 @@ export default async function KasirPage() {
         userId={user.id}
         rates={rates}
         locations={locations.map((l) => ({ id: l.id, name: l.name, type: l.type }))}
-        events={events.filter((e) => e.location).map((e) => ({ id: e.id, name: e.name, currency: e.currency, locationId: e.location!.id, dates: `${e.startDate.toLocaleDateString("id-ID")} - ${e.endDate.toLocaleDateString("id-ID")}` }))}
+        events={events.filter((e) => e.location).map((e) => ({ id: e.id, name: e.name, currency: e.currency, locationId: e.location!.id, dates: `${fmtDate(e.startDate)} - ${fmtDate(e.endDate)}` }))}
         variants={variants.map((v) => ({
           id: v.id,
           sku: v.sku,

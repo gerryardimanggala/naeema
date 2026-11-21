@@ -6,6 +6,7 @@ import { formatMoney, formatRate } from "@/lib/money";
 import { CHANNELS, MARKETPLACES, PAYMENT_METHODS } from "@/lib/constants";
 import { voidSaleAction } from "../../actions";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
+import { fmtDateTime } from "@/lib/time";
 
 export default async function SaleDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SP }) {
   const { id } = await params;
@@ -18,7 +19,7 @@ export default async function SaleDetail({ params, searchParams }: { params: Pro
   if (!sale || (!isAdmin(user) && sale.cashierId !== user.id)) notFound();
   return (
     <div className="max-w-2xl">
-      <PageHeader title={`Nota ${sale.number}`} desc={sale.date.toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" })}>
+      <PageHeader title={`Nota ${sale.number}`} desc={fmtDateTime(sale.date, "full")}>
         <Link href="/penjualan" className="btn-secondary">Kembali</Link>
       </PageHeader>
       <Flash ok={str(sp.ok)} error={str(sp.error)} />
