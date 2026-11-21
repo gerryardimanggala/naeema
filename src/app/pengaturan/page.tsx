@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { formatRate } from "@/lib/money";
 import { CURRENCIES, LOCATION_TYPES, ROLES, WALLET_KINDS } from "@/lib/constants";
-import { addRate, createLocation, createUser, createWallet, resetPin, saveReceiptSettings, toggleUser, toggleWallet } from "../actions";
+import { addRate, createLocation, createPaymentQr, createUser, createWallet, deletePaymentQr, resetPin, saveReceiptSettings, togglePaymentQr, toggleUser, toggleWallet } from "../actions";
 import { getReceiptSettings } from "@/lib/settings";
 import { Card, Flash, PageHeader, str, type SP } from "@/components/ui";
 import { fmtDate } from "@/lib/time";
@@ -17,6 +17,7 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
     db.location.findMany({ where: { type: { not: "EVENT" } }, orderBy: { id: "asc" } }),
   ]);
   const receipt = await getReceiptSettings();
+  const qrs = await db.paymentQr.findMany({ select: { id: true, name: true, currency: true, active: true, note: true, wallet: { select: { name: true } } }, orderBy: [{ currency: "asc" }, { name: "asc" }] });
   const latest = CURRENCIES.filter((c) => c !== "IDR").map((c) => rates.find((r) => r.currency === c));
   return (
     <div>
@@ -49,6 +50,58 @@ export default async function PengaturanPage({ searchParams }: { searchParams: S
             <button className="btn">Simpan kurs</button>
           </form>
           <p className="mt-2 text-xs text-neutral-500">Kurs ini jadi usulan di kasir. Setiap nota menyimpan kursnya sendiri, jadi mengubah kurs tidak mengubah nota lama.</p>
+        </Card>
+
+        <Card title="QR pembayaran">
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {qrs.map((q) => (
+              <div key={q.id} className={`rounded-lg border border-neutral-200 p-2 text-xs ${q.active ? "" : "opacity-50"}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/qr/${q.id}`} alt={`QR ${q.name}`} className="mb-1 aspect-square w-full rounded bg-white object-contain" />
+                <div className="font-medium">{q.name}</div>
+                <div className="text-neutral-500">
+                  {q.currency} · masuk ke {q.wallet.name}
+                </div>
+                {q.note && <div className="text-neutral-500">{q.note}</div>}
+                <div className="mt-1 flex gap-3">
+                  <form action={togglePaymentQr}>
+                    <input type="hidden" name="id" value={q.id} />
+                    <button className="underline">{q.active ? "nonaktifkan" : "aktifkan"}</button>
+                  </form>
+                  <form action={deletePaymentQr}>
+                    <input type="hidden" name="id" value={q.id} />
+                    <button className="text-red-700 underline">hapus</button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+          <form action={createPaymentQr} className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label">Nama</label>
+              <input name="name" className="input" required placeholder="mis. QRIS BCA, Touch 'n Go" />
+            </div>
+            <div>
+              <label className="label">Uang masuk ke</label>
+              <select name="walletId" className="input" required>
+                {wallets.filter((w) => w.active).map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.currency})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="label">Gambar QR (PNG/JPG, maks. 1 MB)</label>
+              <input name="image" type="file" accept="image/png,image/jpeg,image/webp" required className="input" />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Catatan untuk pembeli (opsional)</label>
+              <input name="note" className="input" placeholder="mis. a.n. Naeema Hijab" />
+            </div>
+            <button className="btn col-span-2">Tambah QR</button>
+          </form>
+          <p className="mt-2 text-xs text-neutral-500">Mata uang QR mengikuti dompet penerimanya. Di kasir, QR yang muncul hanya yang sesuai mata uang penjualan.</p>
         </Card>
 
         <Card title="Struk (printer thermal)">

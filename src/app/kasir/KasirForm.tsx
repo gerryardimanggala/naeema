@@ -12,6 +12,7 @@ type Wallet = { id: number; name: string; kind: string; currency: string; ownerI
 type Ev = { id: number; name: string; currency: string; locationId: number; dates: string };
 type Line = { variantId: number; qty: number; price: number; converted: boolean };
 type Pay = { method: string; amount: string; walletId: number };
+type Qr = { id: number; name: string; currency: string; walletId: number; note: string | null };
 
 const STORAGE_KEY = "naeema-kasir-pref";
 const AUTOPRINT_KEY = "naeema-kasir-autoprint";
@@ -19,12 +20,13 @@ const AUTOPRINT_KEY = "naeema-kasir-autoprint";
 export default function KasirForm(props: {
   userId: number;
   rates: Record<string, number>;
+  qrs: Qr[];
   locations: { id: number; name: string; type: string }[];
   events: Ev[];
   variants: Variant[];
   wallets: Wallet[];
 }) {
-  const { userId, rates, locations, events, variants, wallets } = props;
+  const { userId, rates, qrs, locations, events, variants, wallets } = props;
   const [channel, setChannel] = useState<"OFFLINE" | "MARKETPLACE" | "EVENT">("OFFLINE");
   const [marketplace, setMarketplace] = useState("SHOPEE");
   const [externalRef, setExternalRef] = useState("");
@@ -39,6 +41,7 @@ export default function KasirForm(props: {
   const [search, setSearch] = useState("");
   const [result, setResult] = useState<{ ok: boolean; text: string; id?: number } | null>(null);
   const [pending, startTransition] = useTransition();
+  const [qrView, setQrView] = useState<{ payIndex: number | null; qrId: number } | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const router = useRouter();
   useEffect(() => {
@@ -115,6 +118,24 @@ export default function KasirForm(props: {
     return w ? [{ method, amount: String(fromMinor(total, currency)), walletId: w.id }] : [];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payments, total, currency, channel, marketplace]);
+  const curQrs = qrs.filter((q) => q.currency === currency);
+
+  function openQr(payIndex: number | null) {
+    const current = payIndex != null ? effectivePayments[payIndex] : null;
+    const match = curQrs.find((q) => q.walletId === current?.walletId) ?? curQrs[0];
+    if (match) setQrView({ payIndex, qrId: match.id });
+  }
+
+  /** Tandai pembayaran memakai QR yang dipilih: metode QR, uang masuk ke dompet QR tersebut. */
+  function applyQr(qr: Qr, payIndex: number | null) {
+    const next = [...effectivePayments];
+    if (payIndex != null && next[payIndex]) next[payIndex] = { ...next[payIndex], method: "QR", walletId: qr.walletId };
+    else if (next.length <= 1) next.splice(0, next.length, { method: "QR", amount: String(fromMinor(total, currency)), walletId: qr.walletId });
+    else next.push({ method: "QR", amount: "", walletId: qr.walletId });
+    setPayments(next);
+    setQrView(null);
+  }
+
   const paid = effectivePayments.reduce((s, p) => s + (toMinor(p.amount || "0", currency) || 0), 0);
 
   function addVariant(v: Variant) {
@@ -302,11 +323,18 @@ export default function KasirForm(props: {
         {currency !== "IDR" && <div className="text-right text-xs text-neutral-500">≈ {formatMoney(Math.round(fromMinor(total, currency) * Number(rate || 0)), "IDR")}</div>}
 
         <div className="space-y-2 border-t border-neutral-200 pt-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">Pembayaran & penerima uang</span>
-            <button type="button" className="text-xs underline" onClick={() => setPayments([...effectivePayments, { method: "TRANSFER", amount: "", walletId: defaultWallet("TRANSFER")?.id ?? 0 }])}>
-              + bayar campur
-            </button>
+            <div className="flex gap-3">
+              {curQrs.length > 0 && !effectivePayments.some((p) => p.method === "QR") && (
+                <button type="button" className="text-xs font-medium underline" onClick={() => openQr(null)}>
+                  Bayar pakai QR
+                </button>
+              )}
+              <button type="button" className="text-xs underline" onClick={() => setPayments([...effectivePayments, { method: "TRANSFER", amount: "", walletId: defaultWallet("TRANSFER")?.id ?? 0 }])}>
+                + bayar campur
+              </button>
+            </div>
           </div>
           {curWallets.length === 0 && <p className="text-sm text-red-700">Belum ada dompet dalam {currency}. Tambahkan di Pengaturan.</p>}
           {effectivePayments.map((p, i) => (
@@ -347,6 +375,11 @@ export default function KasirForm(props: {
                   <option key={w.id} value={w.id}>Uang masuk ke: {w.name}</option>
                 ))}
               </select>
+              {p.method === "QR" && curQrs.length > 0 && (
+                <button type="button" className="btn-secondary col-span-2" onClick={() => openQr(i)}>
+                  Tampilkan QR ke pembeli
+                </button>
+              )}
               {effectivePayments.length > 1 && (
                 <button type="button" className="col-span-2 text-left text-xs text-red-600" onClick={() => setPayments(effectivePayments.filter((_, j) => j !== i))}>
                   hapus pembayaran ini
@@ -387,6 +420,40 @@ export default function KasirForm(props: {
           </p>
         )}
       </aside>
+
+      {qrView && (() => {
+        const qr = curQrs.find((q) => q.id === qrView.qrId) ?? curQrs[0];
+        if (!qr) return null;
+        const row = qrView.payIndex != null ? effectivePayments[qrView.payIndex] : null;
+        const amount = row ? toMinor(row.amount || "0", currency) || 0 : total;
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-white p-4" role="dialog" aria-modal="true" aria-label={`QR ${qr.name}`}>
+            {curQrs.length > 1 && (
+              <div className="mb-3 flex flex-wrap justify-center gap-2">
+                {curQrs.map((q) => (
+                  <button key={q.id} type="button" className={q.id === qr.id ? "btn" : "btn-secondary"} onClick={() => setQrView({ ...qrView, qrId: q.id })}>
+                    {q.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="text-lg font-semibold">{qr.name}</div>
+            {qr.note && <div className="text-sm text-neutral-600">{qr.note}</div>}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/api/qr/${qr.id}`} alt={`QR ${qr.name}`} className="my-3 w-full max-w-md flex-1 object-contain" style={{ maxHeight: "60vh" }} />
+            <div className="text-sm text-neutral-500">Total yang harus dibayar</div>
+            <div className="mb-4 text-4xl font-bold tabular-nums">{formatMoney(amount, currency)}</div>
+            <div className="flex w-full max-w-md gap-2">
+              <button type="button" className="btn-secondary flex-1 py-3" onClick={() => setQrView(null)}>
+                Tutup
+              </button>
+              <button type="button" className="btn flex-1 py-3" onClick={() => applyQr(qr, qrView.payIndex)}>
+                Pembayaran QR diterima
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {cart.length > 0 && (
         <a href="#nota" className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between bg-neutral-900 px-4 py-3 text-white lg:hidden">

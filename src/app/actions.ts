@@ -440,3 +440,47 @@ export async function saveReceiptSettings(fd: FormData) {
     }
   });
 }
+
+// ---------- QR pembayaran ----------
+
+const QR_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const QR_MAX_BYTES = 1024 * 1024;
+
+export async function createPaymentQr(fd: FormData) {
+  await requireAdmin();
+  await attempt("/pengaturan", "QR pembayaran ditambahkan.", async () => {
+    const name = text(fd, "name");
+    if (!name) throw new BusinessError("Nama QR wajib diisi.");
+    const wallet = await db.wallet.findUnique({ where: { id: int(fd, "walletId") } });
+    if (!wallet) throw new BusinessError("Pilih dompet/rekening penerima.");
+    const file = fd.get("image");
+    if (!(file instanceof File) || file.size === 0) throw new BusinessError("Pilih gambar QR.");
+    if (!QR_TYPES.includes(file.type)) throw new BusinessError("Gambar harus PNG, JPG, atau WEBP.");
+    if (file.size > QR_MAX_BYTES) throw new BusinessError("Ukuran gambar maksimal 1 MB. Potong gambar supaya hanya bagian QR-nya.");
+    await db.paymentQr.create({
+      data: {
+        name,
+        currency: wallet.currency,
+        walletId: wallet.id,
+        image: Buffer.from(await file.arrayBuffer()),
+        mimeType: file.type,
+        note: text(fd, "note") || null,
+      },
+    });
+  });
+}
+
+export async function togglePaymentQr(fd: FormData) {
+  await requireAdmin();
+  await attempt("/pengaturan", "Status QR diubah.", async () => {
+    const qr = await db.paymentQr.findUniqueOrThrow({ where: { id: int(fd, "id") }, select: { id: true, active: true } });
+    await db.paymentQr.update({ where: { id: qr.id }, data: { active: !qr.active } });
+  });
+}
+
+export async function deletePaymentQr(fd: FormData) {
+  await requireAdmin();
+  await attempt("/pengaturan", "QR dihapus.", async () => {
+    await db.paymentQr.delete({ where: { id: int(fd, "id") } });
+  });
+}
